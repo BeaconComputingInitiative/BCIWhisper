@@ -461,7 +461,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 7"
+                text = "ANDROID • v6.0 • ALPHA 8"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -815,7 +815,8 @@ class MainActivity : Activity() {
         baselineCard.addView(
             textView(
                 "The 60-second baseline runs without blocking " +
-                    "the interface.",
+                    "the interface. Level is reported in dBFS (digital full-scale), " +
+                    "not acoustic dB SPL unless the specific microphone is calibrated.",
                 12f,
                 muted
             )
@@ -1737,14 +1738,17 @@ class MainActivity : Activity() {
                 !snapshot.baselineComplete ->
                     String.format(
                         Locale.US,
-                        "BASELINING • %.1f / 60.0 s",
-                        snapshot.baselineSeconds
+                        "BASELINING • %.1f / 60.0 s • room floor %.1f dBFS",
+                        snapshot.baselineSeconds,
+                        snapshot.noiseFloorDbfs
                     )
 
                 snapshot.recordingActive ->
                     String.format(
                         Locale.US,
-                        "SIGNAL LOCKED • SNR %.1f dB • %.1f s confirmed",
+                        "SIGNAL LOCKED • avg %.1f dBFS • peak %.1f dBFS • SNR +%.1f dB • %.1f s",
+                        snapshot.lockedSignalDbfs,
+                        snapshot.lockedSignalPeakDbfs,
                         snapshot.snrDb,
                         snapshot.lockedSeconds
                     )
@@ -1779,12 +1783,17 @@ class MainActivity : Activity() {
 
         baselineText?.text =
             if (snapshot.baselineComplete) {
-                "Baseline complete • 60.0 s"
+                String.format(
+                    Locale.US,
+                    "Baseline complete • %.1f dBFS room floor • 60.0 s",
+                    snapshot.noiseFloorDbfs
+                )
             } else {
                 String.format(
                     Locale.US,
-                    "Baseline %.1f / 60.0 s",
-                    snapshot.baselineSeconds
+                    "Baseline %.1f / 60.0 s • %.1f dBFS",
+                    snapshot.baselineSeconds,
+                    snapshot.noiseFloorDbfs
                 )
             }
 

@@ -145,3 +145,16 @@ The Monitor workspace includes a native Kotlin/Canvas spectrum renderer.
 - adaptive spectral-lock boundaries rendered directly over the spectrum.
 - Android Choreographer drives presentation frames; DSP remains on the capture/detector path.
 - visualization data is presentation-only and cannot block capture, recording, transcription, mastering, or broadcast.
+
+
+## Alpha 8 — baseline and locked-signal decibel telemetry
+
+The Monitor workspace now exposes decibel telemetry at both key stages:
+
+- During the initial 60-second room baseline, BCIWhisper shows a continuously updated 40th-percentile room-floor estimate in **dBFS**.
+- When the baseline completes, the final baseline room-floor value remains visible.
+- Each active locked signal gets its own running **average dBFS** value.
+- Each active lock also exposes the strongest observed **peak dBFS** value.
+- Lock SNR remains shown separately as a relative dB value above the room baseline.
+
+These values are deliberately labeled **dBFS**. Android microphone samples do not provide a trustworthy acoustic dB SPL value without per-device microphone calibration, so the app does not mislabel digital amplitude as SPL.

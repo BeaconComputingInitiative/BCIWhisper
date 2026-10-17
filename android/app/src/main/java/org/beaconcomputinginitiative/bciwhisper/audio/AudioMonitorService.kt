@@ -11,6 +11,7 @@ import org.beaconcomputinginitiative.bciwhisper.R
 import org.beaconcomputinginitiative.bciwhisper.broadcast.BroadcastPublisher
 import java.io.File
 import kotlin.math.log10
+import kotlin.math.pow
 import kotlin.math.sqrt
 
 class AudioMonitorService : Service() {
@@ -44,6 +45,8 @@ class AudioMonitorService : Service() {
         val spectrumBands: FloatArray,
         val recordingActive: Boolean,
         val lockedSeconds: Double,
+        val lockedSignalDbfs: Double,
+        val lockedSignalPeakDbfs: Double,
         val lastEventSummary: String?,
         val framesCaptured: Long,
         val inputSource: String,
@@ -92,6 +95,9 @@ class AudioMonitorService : Service() {
     @Volatile private var lockExcessDb = -120.0
     @Volatile private var spectrumBands = FloatArray(40)
     @Volatile private var framesCaptured = 0L
+    @Volatile private var lockedSignalPowerSum = 0.0
+    @Volatile private var lockedSignalBlocks = 0L
+    @Volatile private var lockedSignalPeakDbfs = -120.0
     @Volatile private var lastError: String? = null
     @Volatile private var lastEventSummary: String? = null
 
@@ -229,6 +235,17 @@ class AudioMonitorService : Service() {
                 recorder.active,
             lockedSeconds =
                 recorder.lockedSeconds,
+            lockedSignalDbfs =
+                if (lockedSignalBlocks > 0) {
+                    10.0 * log10(
+                        (lockedSignalPowerSum / lockedSignalBlocks)
+                            .coerceAtLeast(1e-12)
+                    )
+                } else {
+                    -120.0
+                },
+            lockedSignalPeakDbfs =
+                lockedSignalPeakDbfs,
             lastEventSummary =
                 lastEventSummary,
             framesCaptured =
@@ -417,6 +434,9 @@ class AudioMonitorService : Service() {
             recorder.abort()
 
             framesCaptured = 0
+            lockedSignalPowerSum = 0.0
+            lockedSignalBlocks = 0L
+            lockedSignalPeakDbfs = -120.0
             baselineSeconds = 0.0
             baselineComplete = false
             noiseFloorDbfs = -120.0
@@ -551,6 +571,13 @@ class AudioMonitorService : Service() {
                 recorder.start(
                     preRoll
                 )
+
+                // A new retained-event candidate owns a fresh signal-level
+                // accumulator. These values are reported as dBFS because
+                // Android microphone input is not SPL-calibrated.
+                lockedSignalPowerSum = 0.0
+                lockedSignalBlocks = 0L
+                lockedSignalPeakDbfs = -120.0
             }
 
             if (recorder.active) {
@@ -559,6 +586,17 @@ class AudioMonitorService : Service() {
                     n,
                     signalActive
                 )
+
+                if (signalActive) {
+                    lockedSignalPowerSum +=
+                        10.0.pow(rmsDbfs / 10.0)
+                    lockedSignalBlocks += 1L
+                    lockedSignalPeakDbfs =
+                        kotlin.math.max(
+                            lockedSignalPeakDbfs,
+                            peakDbfs
+                        )
+                }
 
                 if (
                     recorder

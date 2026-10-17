@@ -103,6 +103,14 @@ class DetectionEngine(
 
             baselineFrames += n.toLong()
 
+            // Publish a live 40th-percentile room-floor estimate during the
+            // 60-second baseline. The final baseline remains authoritative only
+            // when the full calibration interval completes.
+            if (baselineDb.size >= 4) {
+                noiseFloorDbfs =
+                    percentile(baselineDb, 0.40)
+            }
+
             if (
                 baselineFrames.toDouble() / sampleRate >=
                 baselineSecondsRequired

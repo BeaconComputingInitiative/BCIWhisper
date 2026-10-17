@@ -186,3 +186,19 @@ The lock now has two distinct stages instead of continuously chasing whichever s
 6. **Release** — after the configured loss grace finishes the event, the detector explicitly releases the anchor before searching for the next signal.
 
 Raw WAV capture is still preserved unchanged. Only the isolated derivative follows the lock-aware moving filter.
+
+
+## Production signing
+
+The repository contains a manual signed-release workflow. It does not store or expose the signing key.
+
+Required GitHub Actions secrets:
+
+- `BCI_ANDROID_KEYSTORE_B64`
+- `BCI_ANDROID_KEYSTORE_PASSWORD`
+- `BCI_ANDROID_KEY_ALIAS`
+- `BCI_ANDROID_KEY_PASSWORD`
+
+The workflow materializes the keystore only inside the ephemeral GitHub Actions runner, builds `:app:assembleRelease`, verifies the APK with `apksigner --print-certs`, hashes it, and uploads the signed APK as a workflow artifact.
+
+The signing key itself must remain under operator custody. Losing that private key can prevent future updates from being accepted as the same application identity.

@@ -1,3 +1,14 @@
+val releaseStoreFile = System.getenv("BCI_ANDROID_KEYSTORE")
+val releaseStorePassword = System.getenv("BCI_ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("BCI_ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("BCI_ANDROID_KEY_PASSWORD")
+
+val hasReleaseSigning =
+    !releaseStoreFile.isNullOrBlank() &&
+    !releaseStorePassword.isNullOrBlank() &&
+    !releaseKeyAlias.isNullOrBlank() &&
+    !releaseKeyPassword.isNullOrBlank()
+
 plugins {
     id("com.android.application")
 }
@@ -25,9 +36,27 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

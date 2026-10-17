@@ -1,0 +1,21 @@
+# BCIWhisper macOS native build dependencies
+# Runtime release line: v6.0 / Script 57.10
+#
+# Keep this lean: the standalone application uses Faster-Whisper /
+# CTranslate2 and deliberately does not bundle Torch/CUDA.
+
+PyInstaller>=6.16,<7
+PyQt6==6.11.0
+numpy==2.5.4
+scipy==1.18.1
+sounddevice==0.5.6
+soundfile==0.14.0
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+av==19.0.1
+tokenizers==0.23.3
+huggingface-hub==2.2.0
+psutil==7.2.2
+requests==2.34.2
+websockets==17.2
+PyYAML==6.0.3

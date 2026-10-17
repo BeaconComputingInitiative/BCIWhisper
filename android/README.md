@@ -20,6 +20,11 @@ Only MONITOR is active in the current Android baseline. The remaining workspaces
 - 44.1 kHz mono PCM16 capture
 - bounded 15-second circular capture ring
 - live RMS / peak telemetry
+- baseline-relative trigger and lock lifecycle
+- 5-second signal-loss release grace
+- 15-second retained-event rule
+- raw + isolated WAV event capture
+- app-private recordings library
 - live signal meter
 - 60-second background baseline clock
 - clear Start Monitor / Stop controls
@@ -30,8 +35,6 @@ Only MONITOR is active in the current Android baseline. The remaining workspaces
 
 ### Pending
 
-- detector / lock logic
-- recording library
 - reconstruction
 - mastering
 - manual transcription backend
@@ -148,3 +151,21 @@ The app requires a public `wss://` gateway URL and a publisher token. The token 
 The Android app publishes 44.1 kHz mono signed 16-bit PCM to the gateway. That is approximately 705.6 kbit/s of audio payload before WebSocket overhead. The gateway transcodes that stream to the configured MP3 bitrate for listeners.
 
 The gateway now accepts both desktop MP3 publishers and Android `pcm_s16le` publishers under `bci-broadcast-v1`.
+
+
+## Android alpha 3
+
+Alpha 3 applies the generated BCIWhisper ear/wave artwork as the launcher identity and ports the first retained-event path:
+
+- 60-second room baseline
+- baseline-relative SNR trigger
+- two-block trigger confirmation
+- 5-second release grace
+- 15-second confirmed-signal retention rule
+- 1-second pre-roll from the capture ring
+- raw WAV preservation
+- separate mobile isolated WAV derivative
+- recordings stored in app-specific storage with no storage permission
+- RECORDINGS workspace lists retained event pairs
+
+The mobile detector currently preserves the desktop lifecycle semantics but does not yet claim parity with the desktop adaptive spectral-lock estimator. That spectral-lock port remains a separate validation item.

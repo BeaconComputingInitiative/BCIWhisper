@@ -1,82 +1,112 @@
 # BCIWhisper Android
 
-BCIWhisper Android is a native Android port of the BCIWhisper workflow. It is not a wrapper around the PyQt6 desktop executable.
+BCIWhisper Android is the native Android port of the BCIWhisper workflow.
 
-## Current mobile baseline
+## Current mobile baseline — Alpha 6
 
-The Android interface is organized around the same operator workflow as desktop:
+Workspaces:
 
 ```text
 MONITOR | RECORDINGS | TRANSCRIPTS | MASTERING
 ```
 
-Only MONITOR is active in the current Android baseline. The remaining workspaces are visible but explicitly marked pending so mobile navigation can stabilize before those subsystems are enabled.
-
 ### Implemented
 
-- native Kotlin application
-- Android `AudioRecord` microphone boundary
+- native Kotlin / Android application
+- branded BCI launcher, splash, typography and UI
+- one-time microphone permission behavior
+- phone microphone and operator-selected Bluetooth headset microphone
+- Android AudioRecord hardware boundary
 - foreground microphone service
 - 44.1 kHz mono PCM16 capture
 - bounded 15-second circular capture ring
-- live RMS / peak telemetry
-- baseline-relative trigger and lock lifecycle
+- 60-second room baseline
+- baseline-relative RMS detection
+- spectral baseline profile
+- adaptive post-trigger spectral lock using the desktop lock constants:
+  - 12% / 92% occupied-energy quantiles
+  - 700 Hz minimum lock width
+  - 150 Hz lock margin
+  - 0.35 smoothing
+  - 500 Hz maximum update step
+  - 3 dB spectral-presence gate
+- two-block trigger confirmation
 - 5-second signal-loss release grace
 - 15-second retained-event rule
-- raw + isolated WAV event capture
+- raw + isolated WAV preservation
 - app-private recordings library
-- live signal meter
-- 60-second background baseline clock
-- clear Start Monitor / Stop controls
-- stable four-workspace navigation
-- BCI dark interface with cyan/maroon accents
-- BCI typography roles: Oxanium for brand/display, Rajdhani for UI controls and labels, JetBrains Mono for technical telemetry
-- permission-aware microphone startup
+- native whisper.cpp offline transcription
+- bundled tiny.en model
+- manual, downstream transcription workflow
+- outbound authenticated WSS broadcast publisher
+- cellular / Wi-Fi network awareness
+- gateway PCM16 -> MP3 transcode path
+- offline STFT/Wiener reconstruction
+- harmonic spectral protection
+- non-destructive reconstructed and mastered WAV derivatives
+- conservative mobile clarity EQ and -1 dBFS output ceiling
 
-### Pending
+## Permission policy
 
-- reconstruction
-- mastering
-- manual transcription backend
-- Go Live publisher
+Runtime permissions are requested only when required:
 
-## Architecture
+- `RECORD_AUDIO`: requested once on first launch.
+- `BLUETOOTH_CONNECT` on Android 12+: requested only when Bluetooth Mic is selected for the first time.
+
+If either permission is denied, BCIWhisper does not repeatedly prompt. Subsequent operator actions direct Android to the app-permission settings.
+
+BCIWhisper does not request location, storage, contacts, camera, SMS, phone, Bluetooth scanning, or notification permission.
+
+## Signal chain
 
 ```text
 MIC / INPUT
     ↓
-Android AudioRecord hardware boundary
+AudioRecord hardware boundary
     ↓
-bounded capture ring
+capture ring
     ↓
-DSP / filtering
+room baseline + spectral profile
     ↓
-baseline / detection
+RMS trigger + adaptive spectral lock
     ↓
-recording
+retained event lifecycle
     ↓
-reconstruction
-    ↓
-mastering
-    ↓
-manual transcription
+RAW + isolated WAV
+    ├── whisper.cpp -> TRANSCRIPTS
+    ├── STFT/Wiener reconstruction
+    │       ↓
+    │   clarity mastering -> MASTERING
+    └── outbound WSS publisher -> Broadcast Gateway -> MP3 StreamPlayer
 ```
 
-The Android hardware boundary replaces the desktop PortAudio/PipeWire layer. Higher processing stages are being ported independently so the mobile application does not inherit desktop-specific hardware assumptions.
+## Mastering status
+
+The reconstruction stage now carries the desktop algorithmic intent: STFT analysis, percentile noise estimation, Wiener-style subtraction, spectral floor, and local-peak/harmonic protection.
+
+Alpha 6 does **not** claim exact desktop mastering parity yet. The desktop release targets -14 LUFS and -1 dBTP. The mobile build currently uses deterministic RMS normalization with a -1 dBFS ceiling. EBU R128 gating and oversampled true-peak measurement remain validation items before production release.
+
+## Transcription
+
+The Android application embeds whisper.cpp as a pinned native ARM64 dependency and bundles `ggml-tiny.en.bin`. Transcription is manual and runs on a dedicated worker thread downstream of recording, so it cannot block capture, detection, recording, or broadcast.
+
+## Broadcast
+
+Android Go Live makes an outbound authenticated `wss://` connection. No inbound mobile-network port is required, so carrier NAT / CGNAT is compatible with the design.
 
 ## Build
 
 Requirements:
 
 - JDK 17
-- Android SDK platform 36
-- Android SDK Build Tools 36.0.0
+- Android SDK 36
+- Android Build Tools 36.0.0
+- Android NDK 25.2.9519653
+- CMake 3.22.1
 - Gradle 9.5.0
-- Android Gradle Plugin 9.3.0
-
-From `android/`:
 
 ```bash
+cd android
 gradle :app:assembleDebug
 ```
 
@@ -86,107 +116,19 @@ Output:
 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## Package identifier
+Package:
 
 ```text
 org.beaconcomputinginitiative.bciwhisper
 ```
 
-## Release status
+## Remaining release-validation items
 
-This remains an Android alpha port and is not yet feature-equivalent to the sealed desktop v6.0 / Script 57.10 release.
+- physical Android-device microphone lifecycle stress
+- Bluetooth route validation across representative headsets
+- real LTE/5G -> public gateway broadcast validation
+- whisper.cpp thermal / latency profiling on ARM64 hardware
+- EBU R128 integrated loudness and oversampled true-peak implementation
+- production signing / release-key custody
 
-
-## Typography
-
-BCIWhisper Android follows the BCI typography system:
-
-- **Oxanium** — BCIWhisper brand name, section/display headings.
-- **Rajdhani** — tabs, buttons, labels, explanatory interface copy.
-- **JetBrains Mono** — RMS/peak levels, baseline timing, and other technical/data values.
-
-The app declares these as Android downloadable font resources through the Google Fonts provider, with deterministic Android fallbacks if the provider is unavailable.
-
-
-## Permission policy
-
-The Android alpha requests only the permission it currently needs from the operator:
-
-- `RECORD_AUDIO` is requested once, on first launch.
-- If microphone access is denied, BCIWhisper does not repeatedly prompt. The Monitor control opens Android App permissions instead.
-- `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_MICROPHONE` are manifest service capabilities and do not create additional runtime prompts.
-- The current Android alpha does not request location, storage, contacts, camera, SMS, phone, Bluetooth, or notification permission.
-
-The one-time request state is stored in private app preferences and resets only if the app is reinstalled or its app data is cleared.
-
-## Branding
-
-The mobile shell follows the BCI identity:
-
-- Oxanium for BCIWhisper branding and section/display headings.
-- Rajdhani for tabs, controls, labels, and explanatory interface copy.
-- JetBrains Mono for telemetry and technical values.
-- Black base, cyan signal accents, and maroon structural accents.
-- Beacon Computing Initiative identification and developer seal are visible in-app.
-- Launcher and splash assets use the BCI listening / waveform mark.
-
-
-## Broadcast transport
-
-Android Go Live uses an outbound authenticated WebSocket publisher.
-
-```text
-Android microphone
-    -> PCM16 capture
-    -> outbound authenticated WSS publisher
-    -> public BCI Broadcast Gateway
-    -> gateway FFmpeg transcode
-    -> MP3 StreamPlayer
-```
-
-This architecture is specifically compatible with cellular networks because the phone does not accept inbound connections. Carrier-grade NAT does not require any port forwarding.
-
-The app requires a public `wss://` gateway URL and a publisher token. The token is not persisted by the Android UI. The gateway URL may be remembered locally for convenience.
-
-The Android app publishes 44.1 kHz mono signed 16-bit PCM to the gateway. That is approximately 705.6 kbit/s of audio payload before WebSocket overhead. The gateway transcodes that stream to the configured MP3 bitrate for listeners.
-
-The gateway now accepts both desktop MP3 publishers and Android `pcm_s16le` publishers under `bci-broadcast-v1`.
-
-
-## Android alpha 3
-
-Alpha 3 applies the generated BCIWhisper ear/wave artwork as the launcher identity and ports the first retained-event path:
-
-- 60-second room baseline
-- baseline-relative SNR trigger
-- two-block trigger confirmation
-- 5-second release grace
-- 15-second confirmed-signal retention rule
-- 1-second pre-roll from the capture ring
-- raw WAV preservation
-- separate mobile isolated WAV derivative
-- recordings stored in app-specific storage with no storage permission
-- RECORDINGS workspace lists retained event pairs
-
-The mobile detector currently preserves the desktop lifecycle semantics but does not yet claim parity with the desktop adaptive spectral-lock estimator. That spectral-lock port remains a separate validation item.
-
-
-## Android alpha 4 — offline transcription
-
-Alpha 4 adds native offline transcription through whisper.cpp.
-
-- whisper.cpp source is pinned as a Git submodule.
-- The APK build bundles `ggml-tiny.en.bin`.
-- Only ARM64 is built for this alpha.
-- Retained isolated WAV recordings can be transcribed manually from RECORDINGS.
-- Transcription runs on a dedicated worker thread and never blocks microphone capture, detection, recording, or broadcast.
-- Transcript text is stored in app-private `files/transcripts` storage; no storage permission is required.
-
-
-## Android alpha 5 — Bluetooth microphone source
-
-The Monitor workspace now supports explicit **Phone Mic** and **Bluetooth Mic** input modes.
-
-Bluetooth mode uses an already-paired headset/earbud microphone through Android's HFP/SCO communication route. BCIWhisper does not scan for devices and does not request location. On Android 12+ the `BLUETOOTH_CONNECT` / Nearby devices runtime permission is requested only when the operator chooses Bluetooth Mic for the first time. If denied, BCIWhisper does not repeatedly prompt; later attempts direct the operator to App permissions.
-
-The route is established with Android's communication-device APIs and `AudioRecord.setPreferredDevice()`. Bluetooth capture uses `VOICE_COMMUNICATION` so Android can negotiate the headset microphone path. Source switching is blocked while monitoring is active; the operator stops monitoring, chooses a source, and restarts. This avoids a mid-capture device race and keeps detector/recording/broadcast ownership deterministic.
+These are not represented as passed until they have real device or release-key evidence.

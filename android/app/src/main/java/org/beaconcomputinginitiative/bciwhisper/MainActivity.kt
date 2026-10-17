@@ -16,6 +16,7 @@ import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.*
 import org.beaconcomputinginitiative.bciwhisper.audio.AudioMonitorService
+import org.beaconcomputinginitiative.bciwhisper.audio.ReconstructionMasteringEngine
 import org.beaconcomputinginitiative.bciwhisper.broadcast.BroadcastPublisher
 import org.beaconcomputinginitiative.bciwhisper.transcription.TranscriptionEngine
 import java.util.Locale
@@ -101,7 +102,9 @@ class MainActivity : Activity() {
     private var stopLiveButton: Button? = null
 
     private val transcriptionEngine by lazy { TranscriptionEngine(this) }
+    private val masteringEngine by lazy { ReconstructionMasteringEngine() }
     @Volatile private var transcriptionBusy = false
+    @Volatile private var masteringBusy = false
 
     private var currentScreen = Screen.MONITOR
 
@@ -456,7 +459,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 5"
+                text = "ANDROID • v6.0 • ALPHA 6"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -565,15 +568,7 @@ class MainActivity : Activity() {
                 buildTranscriptsScreen()
 
             Screen.MASTERING ->
-                buildPendingScreen(
-                    "MASTERING",
-                    "The Android mastering workspace will remain " +
-                        "non-destructive: original capture stays " +
-                        "preserved while preview and mastered " +
-                        "derivatives are created separately.",
-                    "Reconstruction and mastering DSP are not " +
-                        "enabled in this Android baseline yet."
-                )
+                buildMasteringScreen()
         }
 
         content.addView(
@@ -1183,6 +1178,26 @@ class MainActivity : Activity() {
             )
 
             entry.isolatedFile?.let { isolated ->
+                val master = Button(this).apply {
+                    text = "RECONSTRUCT + MASTER"
+                    typeface = uiTypeface
+                    setTextColor(primaryText)
+                    setBackgroundColor(panel)
+                    isEnabled = !masteringBusy
+                    setOnClickListener {
+                        startMastering(isolated)
+                    }
+                }
+                eventCard.addView(
+                    master,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(46)
+                    ).apply {
+                        setMargins(0, dp(12), 0, 0)
+                    }
+                )
+
                 val transcribe = Button(this).apply {
                     text = "TRANSCRIBE ISOLATED"
                     typeface = uiTypeface
@@ -1206,6 +1221,158 @@ class MainActivity : Activity() {
 
             body.addView(
                 eventCard,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, dp(10), 0, 0)
+                }
+            )
+        }
+
+        scroll.addView(body)
+        return scroll
+    }
+
+    private fun startMastering(source: java.io.File) {
+        if (masteringBusy) return
+        masteringBusy = true
+
+        Toast.makeText(
+            this,
+            "Reconstructing and mastering locally…",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        Thread({
+            val result = runCatching {
+                masteringEngine.process(source)
+            }
+
+            runOnUiThread {
+                masteringBusy = false
+
+                result.onSuccess {
+                    Toast.makeText(
+                        this,
+                        String.format(
+                            Locale.US,
+                            "Mastered • RMS %.1f dBFS • peak %.1f dBFS",
+                            it.outputRmsDbfs,
+                            it.outputPeakDbfs
+                        ),
+                        Toast.LENGTH_LONG
+                    ).show()
+
+                    showScreen(Screen.MASTERING)
+                }.onFailure {
+                    Toast.makeText(
+                        this,
+                        "Mastering failed: ${it.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }, "BCI-MobileMastering").start()
+    }
+
+    private fun buildMasteringScreen(): ScrollView {
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(bg)
+        }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(30))
+        }
+
+        body.addView(sectionLabel("MASTERING"))
+
+        val directory =
+            audioService?.recordings()
+                ?.firstOrNull()
+                ?.rawFile
+                ?.parentFile
+
+        val mastered =
+            directory
+                ?.listFiles { file ->
+                    file.isFile &&
+                        file.name.endsWith("_mastered.wav")
+                }
+                ?.sortedByDescending { it.lastModified() }
+                .orEmpty()
+
+        val summary = card()
+        summary.addView(
+            textView(
+                if (masteringBusy) {
+                    "Reconstruction / mastering is running…"
+                } else if (mastered.isEmpty()) {
+                    "No mastered derivatives yet."
+                } else {
+                    "${mastered.size} mastered derivative(s)"
+                },
+                16f,
+                primaryText,
+                bold = true
+            )
+        )
+
+        summary.addView(
+            textView(
+                "Mobile reconstruction uses 2048-point STFT/Wiener suppression " +
+                    "with harmonic protection. Mastering applies conservative " +
+                    "clarity EQ, gain control, and a -1 dBFS ceiling. Original " +
+                    "raw and isolated recordings are never overwritten.",
+                11f,
+                muted
+            ).apply {
+                setPadding(0, dp(8), 0, 0)
+            }
+        )
+
+        summary.addView(
+            textView(
+                "The desktop -14 LUFS / true-peak target is not claimed here yet. " +
+                    "Alpha 6 uses deterministic RMS normalization as a mobile " +
+                    "pre-release stage until EBU R128 and oversampled true-peak " +
+                    "validation are completed.",
+                11f,
+                maroon
+            ).apply {
+                setPadding(0, dp(10), 0, 0)
+            }
+        )
+
+        body.addView(summary)
+
+        mastered.forEach { file ->
+            val c = card()
+            c.addView(
+                textView(
+                    file.name,
+                    12f,
+                    cyan,
+                    role = FontRole.DATA
+                )
+            )
+            c.addView(
+                textView(
+                    String.format(
+                        Locale.US,
+                        "%.2f MB",
+                        file.length() / (1024.0 * 1024.0)
+                    ),
+                    11f,
+                    muted,
+                    role = FontRole.DATA
+                ).apply {
+                    setPadding(0, dp(6), 0, 0)
+                }
+            )
+            body.addView(
+                c,
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT

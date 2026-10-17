@@ -37,6 +37,10 @@ class AudioMonitorService : Service() {
         val noiseFloorDbfs: Double,
         val snrDb: Double,
         val signalActive: Boolean,
+        val lockLowHz: Double,
+        val lockHighHz: Double,
+        val lockCenterHz: Double,
+        val lockExcessDb: Double,
         val recordingActive: Boolean,
         val lockedSeconds: Double,
         val lastEventSummary: String?,
@@ -81,6 +85,10 @@ class AudioMonitorService : Service() {
     @Volatile private var noiseFloorDbfs = -120.0
     @Volatile private var snrDb = 0.0
     @Volatile private var signalActive = false
+    @Volatile private var lockLowHz = 80.0
+    @Volatile private var lockHighHz = 8500.0
+    @Volatile private var lockCenterHz = 1200.0
+    @Volatile private var lockExcessDb = -120.0
     @Volatile private var framesCaptured = 0L
     @Volatile private var lastError: String? = null
     @Volatile private var lastEventSummary: String? = null
@@ -210,6 +218,10 @@ class AudioMonitorService : Service() {
             snrDb = snrDb,
             signalActive =
                 signalActive,
+            lockLowHz = lockLowHz,
+            lockHighHz = lockHighHz,
+            lockCenterHz = lockCenterHz,
+            lockExcessDb = lockExcessDb,
             recordingActive =
                 recorder.active,
             lockedSeconds =
@@ -407,6 +419,10 @@ class AudioMonitorService : Service() {
             noiseFloorDbfs = -120.0
             snrDb = 0.0
             signalActive = false
+            lockLowHz = 80.0
+            lockHighHz = 8500.0
+            lockCenterHz = 1200.0
+            lockExcessDb = -120.0
             lastError = null
             lastEventSummary = null
 
@@ -511,6 +527,11 @@ class AudioMonitorService : Service() {
 
             signalActive =
                 detection.signalActive
+
+            lockLowHz = detection.lockLowHz
+            lockHighHz = detection.lockHighHz
+            lockCenterHz = detection.lockCenterHz
+            lockExcessDb = detection.lockExcessDb
 
             if (
                 baselineComplete &&

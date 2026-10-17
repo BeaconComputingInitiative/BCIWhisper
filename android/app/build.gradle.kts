@@ -11,8 +11,8 @@ android {
         applicationId = "org.beaconcomputinginitiative.bciwhisper"
         minSdk = 28
         targetSdk = 36
-        versionCode = 5
-        versionName = "6.0-android-alpha5"
+        versionCode = 6
+        versionName = "6.0-android-alpha6"
 
         ndk {
             abiFilters += listOf("arm64-v8a")
@@ -45,4 +45,5 @@ android {
 
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.github.wendykierp:JTransforms:3.1")
 }

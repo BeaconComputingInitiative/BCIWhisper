@@ -169,3 +169,15 @@ Alpha 3 applies the generated BCIWhisper ear/wave artwork as the launcher identi
 - RECORDINGS workspace lists retained event pairs
 
 The mobile detector currently preserves the desktop lifecycle semantics but does not yet claim parity with the desktop adaptive spectral-lock estimator. That spectral-lock port remains a separate validation item.
+
+
+## Android alpha 4 — offline transcription
+
+Alpha 4 adds native offline transcription through whisper.cpp.
+
+- whisper.cpp source is pinned as a Git submodule.
+- The APK build bundles `ggml-tiny.en.bin`.
+- Only ARM64 is built for this alpha.
+- Retained isolated WAV recordings can be transcribed manually from RECORDINGS.
+- Transcription runs on a dedicated worker thread and never blocks microphone capture, detection, recording, or broadcast.
+- Transcript text is stored in app-private `files/transcripts` storage; no storage permission is required.

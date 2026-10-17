@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
@@ -44,13 +46,20 @@ jobs:
         run: |
           set -euo pipefail
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "ndk;25.2.9519653" "cmake;3.22.1"
           "$SDKMANAGER" --list_installed
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "9.5.0"
+
+      - name: Bundle whisper.cpp tiny.en model
+        run: |
+          set -euo pipefail
+          mkdir -p android/app/src/main/assets/models
+          curl -fL --retry 4             https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.en.bin             -o android/app/src/main/assets/models/ggml-tiny.en.bin
+          test "$(stat -c%s android/app/src/main/assets/models/ggml-tiny.en.bin)" -gt 1000000
 
       - name: Build debug APK
         working-directory: android
@@ -97,17 +106,17 @@ jobs:
           set -euo pipefail
           mkdir -p android/out
           cp android/app/build/outputs/apk/debug/app-debug.apk \
-             android/out/BCIWhisper-v6.0-Android-alpha3-debug.apk
+             android/out/BCIWhisper-v6.0-Android-alpha4-debug.apk
           (
             cd android/out
-            sha256sum BCIWhisper-v6.0-Android-alpha3-debug.apk \
-              > BCIWhisper-v6.0-Android-alpha3-debug.apk.sha256
+            sha256sum BCIWhisper-v6.0-Android-alpha4-debug.apk \
+              > BCIWhisper-v6.0-Android-alpha4-debug.apk.sha256
           )
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BCIWhisper-Android-alpha3
+          name: BCIWhisper-Android-alpha4
           path: android/out/*
           if-no-files-found: error
           retention-days: 14

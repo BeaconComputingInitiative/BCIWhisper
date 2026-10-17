@@ -17,6 +17,7 @@ import android.view.ViewGroup
 import android.widget.*
 import org.beaconcomputinginitiative.bciwhisper.audio.AudioMonitorService
 import org.beaconcomputinginitiative.bciwhisper.broadcast.BroadcastPublisher
+import org.beaconcomputinginitiative.bciwhisper.transcription.TranscriptionEngine
 import java.util.Locale
 
 class MainActivity : Activity() {
@@ -94,6 +95,9 @@ class MainActivity : Activity() {
     private var broadcastStatusText: TextView? = null
     private var goLiveButton: Button? = null
     private var stopLiveButton: Button? = null
+
+    private val transcriptionEngine by lazy { TranscriptionEngine(this) }
+    @Volatile private var transcriptionBusy = false
 
     private var currentScreen = Screen.MONITOR
 
@@ -358,7 +362,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 3"
+                text = "ANDROID • v6.0 • ALPHA 4"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -464,15 +468,7 @@ class MainActivity : Activity() {
                 buildRecordingsScreen()
 
             Screen.TRANSCRIPTS ->
-                buildPendingScreen(
-                    "TRANSCRIPTS",
-                    "Transcription remains operator initiated. " +
-                        "This workspace will list completed and " +
-                        "pending transcript jobs without coupling " +
-                        "speech recognition to capture.",
-                    "Manual transcription backend is not enabled " +
-                        "in this Android baseline yet."
-                )
+                buildTranscriptsScreen()
 
             Screen.MASTERING ->
                 buildPendingScreen(
@@ -1028,8 +1024,140 @@ class MainActivity : Activity() {
                 }
             )
 
+            entry.isolatedFile?.let { isolated ->
+                val transcribe = Button(this).apply {
+                    text = "TRANSCRIBE ISOLATED"
+                    typeface = uiTypeface
+                    setTextColor(Color.WHITE)
+                    setBackgroundColor(maroon)
+                    isEnabled = !transcriptionBusy
+                    setOnClickListener {
+                        startTranscription(isolated)
+                    }
+                }
+                eventCard.addView(
+                    transcribe,
+                    LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(46)
+                    ).apply {
+                        setMargins(0, dp(12), 0, 0)
+                    }
+                )
+            }
+
             body.addView(
                 eventCard,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, dp(10), 0, 0)
+                }
+            )
+        }
+
+        scroll.addView(body)
+        return scroll
+    }
+
+    private fun startTranscription(source: java.io.File) {
+        if (transcriptionBusy) return
+        transcriptionBusy = true
+        Toast.makeText(
+            this,
+            "Transcribing locally with whisper.cpp…",
+            Toast.LENGTH_SHORT
+        ).show()
+
+        Thread({
+            val result = runCatching {
+                transcriptionEngine.transcribe(source)
+            }
+            runOnUiThread {
+                transcriptionBusy = false
+                result.onSuccess {
+                    Toast.makeText(
+                        this,
+                        "Transcript saved: ${it.transcript.name}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    showScreen(Screen.TRANSCRIPTS)
+                }.onFailure {
+                    Toast.makeText(
+                        this,
+                        "Transcription failed: ${it.message}",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }, "BCI-WhisperCpp").start()
+    }
+
+    private fun buildTranscriptsScreen(): ScrollView {
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(bg)
+        }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(30))
+        }
+
+        body.addView(sectionLabel("TRANSCRIPTS"))
+
+        val files = transcriptionEngine.transcripts()
+        val summary = card()
+        summary.addView(
+            textView(
+                if (transcriptionBusy) {
+                    "whisper.cpp is transcribing locally…"
+                } else if (files.isEmpty()) {
+                    "No transcripts yet."
+                } else {
+                    "${files.size} transcript(s)"
+                },
+                16f,
+                primaryText,
+                bold = true
+            )
+        )
+        summary.addView(
+            textView(
+                "Offline transcription uses whisper.cpp with the bundled tiny.en model. " +
+                    "Transcription is manual and never runs in the capture thread.",
+                11f,
+                muted
+            ).apply {
+                setPadding(0, dp(8), 0, 0)
+            }
+        )
+        body.addView(summary)
+
+        files.forEach { file ->
+            val c = card().apply {
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+            }
+            c.addView(
+                textView(
+                    file.name,
+                    12f,
+                    cyan,
+                    role = FontRole.DATA
+                )
+            )
+            c.addView(
+                textView(
+                    runCatching { file.readText().trim() }
+                        .getOrElse { "Unable to read transcript" }
+                        .ifBlank { "(empty transcript)" },
+                    14f,
+                    primaryText
+                ).apply {
+                    setPadding(0, dp(8), 0, 0)
+                }
+            )
+            body.addView(
+                c,
                 LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT

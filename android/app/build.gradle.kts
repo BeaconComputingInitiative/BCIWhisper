@@ -5,13 +5,24 @@ plugins {
 android {
     namespace = "org.beaconcomputinginitiative.bciwhisper"
     compileSdk = 36
+    ndkVersion = "25.2.9519653"
 
     defaultConfig {
         applicationId = "org.beaconcomputinginitiative.bciwhisper"
         minSdk = 28
         targetSdk = 36
-        versionCode = 3
-        versionName = "6.0-android-alpha3"
+        versionCode = 4
+        versionName = "6.0-android-alpha4"
+
+        ndk {
+            abiFilters += listOf("arm64-v8a")
+        }
+
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DCMAKE_BUILD_TYPE=Release")
+            }
+        }
     }
 
     buildTypes {
@@ -22,6 +33,13 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/whisper/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 

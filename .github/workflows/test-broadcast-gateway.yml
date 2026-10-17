@@ -21,9 +21,13 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Verify FFmpeg
+      - name: Install and verify FFmpeg
         run: |
           set -euo pipefail
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y ffmpeg
+          fi
           command -v ffmpeg
           ffmpeg -version | head -1
 

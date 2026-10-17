@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Typeface
 import android.os.*
 import android.view.Gravity
 import android.view.ViewGroup
@@ -13,26 +14,46 @@ import org.beaconcomputinginitiative.bciwhisper.audio.AudioMonitorService
 import java.util.Locale
 
 class MainActivity : Activity() {
+    private enum class Screen { MONITOR, RECORDINGS, TRANSCRIPTS, MASTERING }
+
+    private val bg = Color.rgb(8, 10, 12)
+    private val panel = Color.rgb(17, 23, 27)
+    private val cyan = Color.rgb(0, 216, 230)
+    private val maroon = Color.rgb(122, 23, 51)
+    private val text = Color.rgb(232, 241, 243)
+    private val muted = Color.rgb(141, 160, 166)
+
     private var audioService: AudioMonitorService? = null
     private var bound = false
     private val handler = Handler(Looper.getMainLooper())
 
-    private lateinit var stateText: TextView
-    private lateinit var levelText: TextView
-    private lateinit var baselineText: TextView
-    private lateinit var baselineBar: ProgressBar
-    private lateinit var startButton: Button
-    private lateinit var stopButton: Button
+    private lateinit var content: FrameLayout
+    private lateinit var monitorTab: Button
+    private lateinit var recordingsTab: Button
+    private lateinit var transcriptsTab: Button
+    private lateinit var masteringTab: Button
+
+    private var stateText: TextView? = null
+    private var levelText: TextView? = null
+    private var baselineText: TextView? = null
+    private var baselineBar: ProgressBar? = null
+    private var levelBar: ProgressBar? = null
+    private var startButton: Button? = null
+    private var stopButton: Button? = null
+
+    private var currentScreen = Screen.MONITOR
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
             audioService = (binder as? AudioMonitorService.LocalBinder)?.service()
             bound = audioService != null
+            renderSnapshot()
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
             bound = false
             audioService = null
+            renderSnapshot()
         }
     }
 
@@ -45,24 +66,37 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(8, 10, 12)
-        window.navigationBarColor = Color.rgb(8, 10, 12)
-        setContentView(buildUi())
+        window.statusBarColor = bg
+        window.navigationBarColor = bg
+        setContentView(buildShell())
         requestPermissionsIfNeeded()
+        showScreen(Screen.MONITOR)
     }
 
     override fun onStart() {
         super.onStart()
-        bindService(Intent(this, AudioMonitorService::class.java), connection, BIND_AUTO_CREATE)
+        bindAudioService()
         handler.post(poll)
     }
 
     override fun onStop() {
         handler.removeCallbacks(poll)
-        if (bound) unbindService(connection)
-        bound = false
+        if (bound) {
+            unbindService(connection)
+            bound = false
+        }
         audioService = null
         super.onStop()
+    }
+
+    private fun bindAudioService() {
+        if (!bound) {
+            bindService(
+                Intent(this, AudioMonitorService::class.java),
+                connection,
+                BIND_AUTO_CREATE
+            )
+        }
     }
 
     private fun requestPermissionsIfNeeded() {
@@ -71,7 +105,8 @@ class MainActivity : Activity() {
             needed += Manifest.permission.RECORD_AUDIO
         }
         if (Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
             needed += Manifest.permission.POST_NOTIFICATIONS
         }
         if (needed.isNotEmpty()) requestPermissions(needed.toTypedArray(), 100)
@@ -82,158 +117,381 @@ class MainActivity : Activity() {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 100)
             return
         }
-        val intent = Intent(this, AudioMonitorService::class.java).setAction(AudioMonitorService.ACTION_START)
+
+        val intent = Intent(this, AudioMonitorService::class.java)
+            .setAction(AudioMonitorService.ACTION_START)
         startForegroundService(intent)
-        bindService(Intent(this, AudioMonitorService::class.java), connection, BIND_AUTO_CREATE)
+        bindAudioService()
     }
 
     private fun stopMonitor() {
-        startService(Intent(this, AudioMonitorService::class.java).setAction(AudioMonitorService.ACTION_STOP))
+        startService(
+            Intent(this, AudioMonitorService::class.java)
+                .setAction(AudioMonitorService.ACTION_STOP)
+        )
     }
 
-    private fun buildUi(): LinearLayout {
+    private fun buildShell(): LinearLayout {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(36, 30, 36, 30)
-            setBackgroundColor(Color.rgb(8, 10, 12))
+            setBackgroundColor(bg)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         }
 
-        root.addView(TextView(this).apply {
+        val header = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(12))
+            setBackgroundColor(bg)
+        }
+
+        header.addView(TextView(this).apply {
             text = "BCIWhisper"
-            textSize = 30f
-            setTextColor(Color.rgb(0, 216, 230))
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            textSize = 28f
+            setTextColor(cyan)
+            setTypeface(typeface, Typeface.BOLD)
         })
 
-        root.addView(TextView(this).apply {
-            text = "ANDROID PORT • v6.0 • PHASE 1"
-            textSize = 12f
-            setTextColor(Color.rgb(141, 160, 166))
-            setPadding(0, 0, 0, 28)
+        header.addView(TextView(this).apply {
+            text = "ANDROID • v6.0 PORT"
+            textSize = 11f
+            setTextColor(muted)
         })
 
-        root.addView(sectionTitle("MONITOR"))
+        root.addView(header)
 
-        stateText = valueText("Boundary stopped")
-        root.addView(stateText)
+        val tabs = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(dp(12), 0, dp(12), dp(10))
+            setBackgroundColor(bg)
+        }
 
-        levelText = valueText("RMS -120.0 dBFS   PEAK -120.0 dBFS")
-        root.addView(levelText)
+        monitorTab = tabButton("MONITOR", Screen.MONITOR)
+        recordingsTab = tabButton("RECORDINGS", Screen.RECORDINGS)
+        transcriptsTab = tabButton("TRANSCRIPTS", Screen.TRANSCRIPTS)
+        masteringTab = tabButton("MASTERING", Screen.MASTERING)
 
-        baselineText = valueText("Baseline 0.0 / 60.0 s")
-        root.addView(baselineText)
+        listOf(monitorTab, recordingsTab, transcriptsTab, masteringTab).forEach {
+            tabs.addView(
+                it,
+                LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                    setMargins(dp(3), 0, dp(3), 0)
+                }
+            )
+        }
+
+        root.addView(tabs)
+
+        content = FrameLayout(this).apply {
+            setBackgroundColor(bg)
+        }
+        root.addView(
+            content,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                0,
+                1f
+            )
+        )
+
+        return root
+    }
+
+    private fun tabButton(label: String, screen: Screen) = Button(this).apply {
+        text = label
+        textSize = 9.5f
+        isAllCaps = false
+        setTextColor(text)
+        setBackgroundColor(panel)
+        setPadding(dp(2), 0, dp(2), 0)
+        setOnClickListener { showScreen(screen) }
+    }
+
+    private fun showScreen(screen: Screen) {
+        currentScreen = screen
+        content.removeAllViews()
+
+        listOf(
+            monitorTab to Screen.MONITOR,
+            recordingsTab to Screen.RECORDINGS,
+            transcriptsTab to Screen.TRANSCRIPTS,
+            masteringTab to Screen.MASTERING
+        ).forEach { (button, target) ->
+            button.setTextColor(if (target == screen) cyan else muted)
+            button.setBackgroundColor(if (target == screen) Color.rgb(22, 42, 48) else panel)
+        }
+
+        val view = when (screen) {
+            Screen.MONITOR -> buildMonitorScreen()
+            Screen.RECORDINGS -> buildPendingScreen(
+                "RECORDINGS",
+                "Captured events will be organized here as logical recordings with preserved source audio and derived processing stages.",
+                "Android recording-library port is the next functional stage."
+            )
+            Screen.TRANSCRIPTS -> buildPendingScreen(
+                "TRANSCRIPTS",
+                "Transcription remains operator initiated. This workspace will list completed and pending transcript jobs without coupling speech recognition to capture.",
+                "Manual transcription backend is not enabled in this Android baseline yet."
+            )
+            Screen.MASTERING -> buildPendingScreen(
+                "MASTERING",
+                "The Android mastering workspace will remain non-destructive: original capture stays preserved while preview and mastered derivatives are created separately.",
+                "Reconstruction and mastering DSP are not enabled in this Android baseline yet."
+            )
+        }
+
+        content.addView(
+            view,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        )
+        renderSnapshot()
+    }
+
+    private fun buildMonitorScreen(): ScrollView {
+        stateText = null
+        levelText = null
+        baselineText = null
+        baselineBar = null
+        levelBar = null
+        startButton = null
+        stopButton = null
+
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(bg)
+        }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(8), dp(18), dp(30))
+        }
+
+        body.addView(sectionLabel("MICROPHONE"))
+
+        val statusCard = card()
+        stateText = textView("Boundary stopped", 16f, text, bold = true)
+        statusCard.addView(stateText)
+
+        val statusHint = textView(
+            "Start Monitor to open the Android microphone boundary. Capture continues in a foreground service while this screen is visible or backgrounded.",
+            12f,
+            muted
+        )
+        statusHint.setPadding(0, dp(8), 0, 0)
+        statusCard.addView(statusHint)
+        body.addView(statusCard)
+
+        body.addView(sectionLabel("LIVE LEVEL").apply { setPadding(0, dp(20), 0, dp(8)) })
+
+        val signalCard = card()
+        levelText = textView("RMS -120.0 dBFS   •   PEAK -120.0 dBFS", 15f, text)
+        signalCard.addView(levelText)
+
+        levelBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 600
+            progress = 0
+        }
+        signalCard.addView(
+            levelBar,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(18)
+            ).apply { setMargins(0, dp(10), 0, 0) }
+        )
+        body.addView(signalCard)
+
+        body.addView(sectionLabel("ROOM BASELINE").apply { setPadding(0, dp(20), 0, dp(8)) })
+
+        val baselineCard = card()
+        baselineText = textView("Baseline 0.0 / 60.0 s", 15f, text)
+        baselineCard.addView(baselineText)
 
         baselineBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 600
             progress = 0
         }
-        root.addView(
+        baselineCard.addView(
             baselineBar,
-            LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 20).apply {
-                setMargins(0, 8, 0, 26)
-            }
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(18)
+            ).apply { setMargins(0, dp(10), 0, dp(8)) }
         )
 
-        val buttonRow = LinearLayout(this).apply {
+        baselineCard.addView(
+            textView(
+                "The 60-second baseline runs without blocking the interface.",
+                12f,
+                muted
+            )
+        )
+        body.addView(baselineCard)
+
+        val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(22), 0, dp(6))
         }
 
         startButton = Button(this).apply {
             text = "START MONITOR"
+            setTextColor(Color.WHITE)
+            setBackgroundColor(maroon)
             setOnClickListener { startMonitor() }
         }
 
         stopButton = Button(this).apply {
             text = "STOP"
+            setTextColor(text)
+            setBackgroundColor(panel)
+            isEnabled = false
             setOnClickListener { stopMonitor() }
         }
 
-        buttonRow.addView(
+        controls.addView(
             startButton,
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams(0, dp(52), 2f).apply {
+                setMargins(0, 0, dp(6), 0)
+            }
         )
-        buttonRow.addView(
+        controls.addView(
             stopButton,
-            LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            LinearLayout.LayoutParams(0, dp(52), 1f).apply {
+                setMargins(dp(6), 0, 0, 0)
+            }
         )
-        root.addView(buttonRow)
 
-        root.addView(sectionTitle("PORT STATUS").apply { setPadding(0, 36, 0, 10) })
+        body.addView(controls)
 
-        root.addView(
-            valueText(
-                "✓ Android AudioRecord hardware boundary\n" +
+        body.addView(sectionLabel("ANDROID PORT STATUS").apply { setPadding(0, dp(22), 0, dp(8)) })
+
+        val portCard = card()
+        portCard.addView(
+            textView(
+                "✓ Native AudioRecord hardware boundary\n" +
                 "✓ Foreground microphone service\n" +
                 "✓ 44.1 kHz mono PCM16 capture\n" +
-                "✓ 15-second circular capture ring\n" +
+                "✓ Bounded 15-second circular ring\n" +
                 "✓ Live RMS / peak telemetry\n" +
                 "✓ 60-second baseline clock\n" +
-                "○ Detection / lock port pending\n" +
+                "○ Detector / lock logic pending\n" +
                 "○ Recording library pending\n" +
                 "○ Reconstruction / mastering pending\n" +
-                "○ Manual transcription backend pending\n" +
-                "○ Go Live publisher pending"
+                "○ Manual transcription pending\n" +
+                "○ Go Live publisher pending",
+                13f,
+                text
             )
         )
+        body.addView(portCard)
 
-        root.addView(TextView(this).apply {
-            text = "Observe accurately. Preserve faithfully. Analyze transparently. Communicate securely. Act deliberately."
-            textSize = 11f
-            setTextColor(Color.rgb(122, 23, 51))
-            setPadding(0, 36, 0, 0)
-        })
+        body.addView(
+            textView(
+                "Observe accurately. Preserve faithfully. Analyze transparently. Communicate securely. Act deliberately.",
+                11f,
+                muted
+            ).apply { setPadding(0, dp(28), 0, 0) }
+        )
 
-        return root
+        scroll.addView(body)
+        return scroll
     }
 
-    private fun sectionTitle(text: String) = TextView(this).apply {
-        this.text = text
-        textSize = 13f
-        setTextColor(Color.rgb(122, 23, 51))
-        setTypeface(typeface, android.graphics.Typeface.BOLD)
-        setPadding(0, 10, 0, 10)
+    private fun buildPendingScreen(title: String, bodyText: String, note: String): ScrollView {
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(bg)
+        }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(30))
+        }
+
+        body.addView(sectionLabel(title))
+        val c = card()
+        c.addView(textView(bodyText, 16f, text))
+        c.addView(textView(note, 12f, muted).apply { setPadding(0, dp(16), 0, 0) })
+        body.addView(c)
+
+        body.addView(
+            textView(
+                "This screen is intentionally present before the subsystem is enabled so the mobile workflow remains stable while functionality is ported behind it.",
+                12f,
+                muted
+            ).apply { setPadding(0, dp(20), 0, 0) }
+        )
+
+        scroll.addView(body)
+        return scroll
     }
 
-    private fun valueText(text: String) = TextView(this).apply {
-        this.text = text
-        textSize = 15f
-        setTextColor(Color.rgb(232, 241, 243))
-        setPadding(0, 5, 0, 5)
+    private fun card() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(16), dp(16), dp(16), dp(16))
+        setBackgroundColor(panel)
     }
+
+    private fun sectionLabel(label: String) = TextView(this).apply {
+        text = label
+        textSize = 12f
+        setTextColor(maroon)
+        setTypeface(typeface, Typeface.BOLD)
+        letterSpacing = 0.08f
+        setPadding(0, dp(8), 0, dp(8))
+    }
+
+    private fun textView(value: String, size: Float, color: Int, bold: Boolean = false) =
+        TextView(this).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            if (bold) setTypeface(typeface, Typeface.BOLD)
+            setLineSpacing(0f, 1.12f)
+        }
 
     private fun renderSnapshot() {
+        if (currentScreen != Screen.MONITOR) return
+
         val s = audioService?.snapshot()
         if (s == null) {
-            stateText.text = if (bound) "Boundary connected" else "Boundary stopped"
+            stateText?.text = if (bound) "Microphone boundary ready" else "Boundary stopped"
+            startButton?.isEnabled = true
+            stopButton?.isEnabled = false
             return
         }
 
-        stateText.text = when {
-            s.lastError != null -> "ERROR: ${s.lastError}"
-            s.running -> "MICROPHONE BOUNDARY ACTIVE • ${s.sampleRate} Hz"
+        stateText?.text = when {
+            s.lastError != null -> "ERROR • ${s.lastError}"
+            s.running && !s.baselineComplete -> "CALIBRATING • ${s.sampleRate} Hz"
+            s.running -> "MONITORING • ${s.sampleRate} Hz"
             else -> "Boundary stopped"
         }
 
-        levelText.text = String.format(
+        levelText?.text = String.format(
             Locale.US,
-            "RMS %.1f dBFS   PEAK %.1f dBFS",
+            "RMS %.1f dBFS   •   PEAK %.1f dBFS",
             s.rmsDbfs,
             s.peakDbfs
         )
 
-        baselineText.text = if (s.baselineComplete) {
-            "Baseline COMPLETE • 60.0 s"
+        val peakForMeter = s.peakDbfs.coerceIn(-60.0, 0.0)
+        levelBar?.progress = ((peakForMeter + 60.0) * 10.0).toInt().coerceIn(0, 600)
+
+        baselineText?.text = if (s.baselineComplete) {
+            "Baseline complete • 60.0 s"
         } else {
             String.format(Locale.US, "Baseline %.1f / 60.0 s", s.baselineSeconds)
         }
 
-        baselineBar.progress = (s.baselineSeconds * 10.0).toInt().coerceIn(0, 600)
-        startButton.isEnabled = !s.running
-        stopButton.isEnabled = s.running
+        baselineBar?.progress = (s.baselineSeconds * 10.0).toInt().coerceIn(0, 600)
+        startButton?.isEnabled = !s.running
+        stopButton?.isEnabled = s.running
     }
+
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 }

@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
@@ -23,13 +23,29 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Locate Android SDK manager
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "ANDROID_HOME=${ANDROID_HOME:-}"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-}"
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDK_ROOT" -type f -name sdkmanager -perm -u+x 2>/dev/null | head -1 || true)"
+          fi
+          test -n "$SDKMANAGER"
+          echo "SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
+          "$SDKMANAGER" --version
 
       - name: Install Android platform
+        shell: bash
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager "platforms;android-37" "build-tools;36.0.0"
+          set -euo pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-37" "build-tools;36.0.0"
+          "$SDKMANAGER" --list_installed
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -38,24 +54,31 @@ jobs:
 
       - name: Build debug APK
         working-directory: android
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
 
       - name: Verify APK
         run: |
+          set -euo pipefail
           test -f android/app/build/outputs/apk/debug/app-debug.apk
+          unzip -t android/app/build/outputs/apk/debug/app-debug.apk >/dev/null
           sha256sum android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Stage artifact
         run: |
+          set -euo pipefail
           mkdir -p android/out
           cp android/app/build/outputs/apk/debug/app-debug.apk \
              android/out/BCIWhisper-v6.0-Android-alpha1-debug.apk
-          sha256sum android/out/BCIWhisper-v6.0-Android-alpha1-debug.apk \
-             > android/out/BCIWhisper-v6.0-Android-alpha1-debug.apk.sha256
+          (
+            cd android/out
+            sha256sum BCIWhisper-v6.0-Android-alpha1-debug.apk \
+              > BCIWhisper-v6.0-Android-alpha1-debug.apk.sha256
+          )
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: BCIWhisper-Android-alpha1
           path: android/out/*
+          if-no-files-found: error
           retention-days: 14

@@ -402,7 +402,7 @@ class MainActivity : Activity() {
                 "○ Manual transcription pending\n" +
                 "○ Go Live publisher pending",
                 13f,
-                text
+                primaryText
             )
         )
         body.addView(portCard)

@@ -1,0 +1,122 @@
+name: Build BCIWhisper for Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows x86_64
+    runs-on: windows-2025
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify release runtime source has not drifted
+        shell: pwsh
+        run: |
+          git fetch --tags --force
+          git diff --exit-code v6.0-script57.10 -- BCIWhisper.py bci bci_audio bci_core bciwhisper services assets/bciwhisper.png
+          if ($LASTEXITCODE -ne 0) { throw "Runtime source differs from v6.0-script57.10" }
+          Write-Host "[PASS] Runtime source matches v6.0-script57.10"
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: "x64"
+          cache: pip
+          cache-dependency-path: requirements-windows-build.txt
+
+      - name: Verify architecture
+        shell: pwsh
+        run: |
+          python -c "import platform, struct; print('Machine:', platform.machine()); print('Bits:', struct.calcsize('P') * 8)"
+          $bits = python -c "import struct; print(struct.calcsize('P') * 8)"
+          if ($bits.Trim() -ne "64") { throw "Expected 64-bit Python" }
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements-windows-build.txt
+          python -m pip check
+
+      - name: Compile BCI source
+        shell: pwsh
+        run: |
+          python -m py_compile BCIWhisper.py
+          python -m py_compile bci_audio/boundary.py
+          python -m py_compile bci_core/state.py
+          python -m py_compile bciwhisper/config/paths.py
+
+      - name: Build Windows icon
+        shell: pwsh
+        run: |
+          python -c "from PIL import Image; im=Image.open('assets/bciwhisper.png').convert('RGBA'); im.save('assets/bciwhisper.ico', format='ICO', sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+          if (!(Test-Path "assets\bciwhisper.ico")) { throw "Windows icon was not produced" }
+
+      - name: Build executable
+        shell: pwsh
+        run: |
+          if (Test-Path build) { Remove-Item -Recurse -Force build }
+          if (Test-Path dist) { Remove-Item -Recurse -Force dist }
+          python -m PyInstaller --clean --noconfirm BCIWhisper-Windows.spec
+          if (!(Test-Path "dist\BCIWhisper\BCIWhisper.exe")) { throw "BCIWhisper.exe was not produced" }
+
+      - name: Inspect executable
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "dist\BCIWhisper\BCIWhisper.exe"
+          Write-Host "Executable: $exe"
+          Get-Item $exe | Format-List Name,Length,LastWriteTime
+
+      - name: QA graceful-start/shutdown smoke test
+        shell: pwsh
+        run: |
+          $env:BCI_QA_AUTOCLOSE_MS = "8000"
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = (Resolve-Path "dist\BCIWhisper\BCIWhisper.exe")
+          $psi.UseShellExecute = $false
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+          $proc = New-Object System.Diagnostics.Process
+          $proc.StartInfo = $psi
+          [void]$proc.Start()
+          $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+          $stderrTask = $proc.StandardError.ReadToEndAsync()
+          if (-not $proc.WaitForExit(25000)) { try { $proc.Kill($true) } catch {}; throw "BCIWhisper did not exit within 25 seconds" }
+          $stdout = $stdoutTask.Result
+          $stderr = $stderrTask.Result
+          Write-Host $stdout
+          if ($stderr) { Write-Host $stderr }
+          Write-Host "WINDOWS_RELEASE_SMOKE_EXIT=$($proc.ExitCode)"
+          if ($proc.ExitCode -ne 0) { throw "BCIWhisper exited with code $($proc.ExitCode)" }
+          foreach ($marker in @("[BCI][QA] autoclose timer FIRED", "[BCI][SHUTDOWN] closeEvent ENTER", "[BCI][SHUTDOWN] closeEvent EXIT accepted")) { if (-not $stdout.Contains($marker)) { throw "Missing graceful-shutdown marker: $marker" } }
+          Write-Host "[PASS] Windows frozen graceful shutdown"
+
+      - name: Package release
+        shell: pwsh
+        run: |
+          $base = "BCIWhisper-v6.0-Script57.10-Windows-x86_64"
+          if (Test-Path "$base.zip") { Remove-Item -Force "$base.zip" }
+          Compress-Archive -Path "dist\BCIWhisper\*" -DestinationPath "$base.zip" -CompressionLevel Optimal
+          $hash = (Get-FileHash "$base.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $base.zip" | Set-Content "$base.zip.sha256" -Encoding ascii
+          Get-FileHash "$base.zip" -Algorithm SHA256
+          Get-Item "$base.zip","$base.zip.sha256" | Format-Table Name,Length,LastWriteTime
+
+      - name: Upload Windows build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BCIWhisper-Windows-x86_64
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            BCIWhisper-v6.0-Script57.10-Windows-x86_64.zip
+            BCIWhisper-v6.0-Script57.10-Windows-x86_64.zip.sha256

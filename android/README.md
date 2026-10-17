@@ -181,3 +181,12 @@ Alpha 4 adds native offline transcription through whisper.cpp.
 - Retained isolated WAV recordings can be transcribed manually from RECORDINGS.
 - Transcription runs on a dedicated worker thread and never blocks microphone capture, detection, recording, or broadcast.
 - Transcript text is stored in app-private `files/transcripts` storage; no storage permission is required.
+
+
+## Android alpha 5 — Bluetooth microphone source
+
+The Monitor workspace now supports explicit **Phone Mic** and **Bluetooth Mic** input modes.
+
+Bluetooth mode uses an already-paired headset/earbud microphone through Android's HFP/SCO communication route. BCIWhisper does not scan for devices and does not request location. On Android 12+ the `BLUETOOTH_CONNECT` / Nearby devices runtime permission is requested only when the operator chooses Bluetooth Mic for the first time. If denied, BCIWhisper does not repeatedly prompt; later attempts direct the operator to App permissions.
+
+The route is established with Android's communication-device APIs and `AudioRecord.setPreferredDevice()`. Bluetooth capture uses `VOICE_COMMUNICATION` so Android can negotiate the headset microphone path. Source switching is blocked while monitoring is active; the operator stops monitoring, chooses a source, and restarts. This avoids a mid-capture device race and keeps detector/recording/broadcast ownership deterministic.

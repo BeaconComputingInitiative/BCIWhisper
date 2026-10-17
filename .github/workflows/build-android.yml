@@ -89,9 +89,13 @@ jobs:
           grep -q "android.permission.ACCESS_NETWORK_STATE" /tmp/bci-permissions.txt
           grep -q "android.permission.FOREGROUND_SERVICE" /tmp/bci-permissions.txt
           grep -q "android.permission.FOREGROUND_SERVICE_MICROPHONE" /tmp/bci-permissions.txt
+          grep -q "android.permission.MODIFY_AUDIO_SETTINGS" /tmp/bci-permissions.txt
+          grep -q "android.permission.BLUETOOTH_CONNECT" /tmp/bci-permissions.txt
 
           ! grep -q "ACCESS_FINE_LOCATION" /tmp/bci-permissions.txt
           ! grep -q "ACCESS_COARSE_LOCATION" /tmp/bci-permissions.txt
+          ! grep -q "BLUETOOTH_SCAN" /tmp/bci-permissions.txt
+          ! grep -q "BLUETOOTH_ADVERTISE" /tmp/bci-permissions.txt
           ! grep -q "READ_CONTACTS" /tmp/bci-permissions.txt
           ! grep -q "CAMERA" /tmp/bci-permissions.txt
           ! grep -q "READ_SMS" /tmp/bci-permissions.txt
@@ -106,17 +110,17 @@ jobs:
           set -euo pipefail
           mkdir -p android/out
           cp android/app/build/outputs/apk/debug/app-debug.apk \
-             android/out/BCIWhisper-v6.0-Android-alpha4-debug.apk
+             android/out/BCIWhisper-v6.0-Android-alpha5-debug.apk
           (
             cd android/out
-            sha256sum BCIWhisper-v6.0-Android-alpha4-debug.apk \
-              > BCIWhisper-v6.0-Android-alpha4-debug.apk.sha256
+            sha256sum BCIWhisper-v6.0-Android-alpha5-debug.apk \
+              > BCIWhisper-v6.0-Android-alpha5-debug.apk.sha256
           )
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: BCIWhisper-Android-alpha4
+          name: BCIWhisper-Android-alpha5
           path: android/out/*
           if-no-files-found: error
           retention-days: 14

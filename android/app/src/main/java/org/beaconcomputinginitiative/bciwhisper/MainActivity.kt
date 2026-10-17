@@ -88,6 +88,10 @@ class MainActivity : Activity() {
     private var detectionText: TextView? = null
     private var startButton: Button? = null
     private var stopButton: Button? = null
+    private var phoneSourceButton: Button? = null
+    private var bluetoothSourceButton: Button? = null
+    private var sourceStatusText: TextView? = null
+    private var pendingBluetoothSelection = false
 
     private var networkText: TextView? = null
     private var gatewayEdit: EditText? = null
@@ -183,6 +187,92 @@ class MainActivity : Activity() {
                 ).show()
             }
         }
+
+        if (requestCode == REQUEST_BLUETOOTH_CONNECT) {
+            if (hasBluetoothPermission() && pendingBluetoothSelection) {
+                selectInputSource(AudioMonitorService.INPUT_SOURCE_BLUETOOTH)
+            } else if (!hasBluetoothPermission()) {
+                Toast.makeText(
+                    this,
+                    "Nearby devices access was not enabled. BCIWhisper will not ask again automatically.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            pendingBluetoothSelection = false
+            renderInputSourceControls()
+        }
+    }
+
+    private fun hasBluetoothPermission(): Boolean =
+        Build.VERSION.SDK_INT < 31 ||
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
+
+    private fun requestBluetoothSource() {
+        if (Build.VERSION.SDK_INT < 31 || hasBluetoothPermission()) {
+            selectInputSource(AudioMonitorService.INPUT_SOURCE_BLUETOOTH)
+            return
+        }
+
+        if (prefs.getBoolean(KEY_BLUETOOTH_PROMPTED, false)) {
+            Toast.makeText(
+                this,
+                "Enable Nearby devices for BCIWhisper in App permissions.",
+                Toast.LENGTH_LONG
+            ).show()
+            openAppPermissionSettings()
+            return
+        }
+
+        pendingBluetoothSelection = true
+        prefs.edit().putBoolean(KEY_BLUETOOTH_PROMPTED, true).apply()
+        requestPermissions(
+            arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
+            REQUEST_BLUETOOTH_CONNECT
+        )
+    }
+
+    private fun selectedInputSource(): String =
+        prefs.getString(KEY_INPUT_SOURCE, AudioMonitorService.INPUT_SOURCE_PHONE)
+            ?.takeIf {
+                it == AudioMonitorService.INPUT_SOURCE_PHONE ||
+                    it == AudioMonitorService.INPUT_SOURCE_BLUETOOTH
+            }
+            ?: AudioMonitorService.INPUT_SOURCE_PHONE
+
+    private fun selectInputSource(source: String) {
+        if (audioService?.snapshot()?.running == true) {
+            Toast.makeText(
+                this,
+                "Stop monitoring before changing the microphone source.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        prefs.edit().putString(KEY_INPUT_SOURCE, source).apply()
+        renderInputSourceControls()
+    }
+
+    private fun renderInputSourceControls() {
+        val selected = selectedInputSource()
+        val running = audioService?.snapshot()?.running == true
+
+        phoneSourceButton?.isEnabled =
+            !running && selected != AudioMonitorService.INPUT_SOURCE_PHONE
+        bluetoothSourceButton?.isEnabled =
+            !running && selected != AudioMonitorService.INPUT_SOURCE_BLUETOOTH
+
+        sourceStatusText?.text =
+            when (selected) {
+                AudioMonitorService.INPUT_SOURCE_BLUETOOTH ->
+                    if (hasBluetoothPermission()) {
+                        "BLUETOOTH HEADSET MIC selected"
+                    } else {
+                        "BLUETOOTH selected • Nearby devices permission required"
+                    }
+                else -> "PHONE MICROPHONE selected"
+            }
     }
 
     private fun hasMicrophonePermission(): Boolean =
@@ -242,6 +332,10 @@ class MainActivity : Activity() {
         startForegroundService(
             Intent(this, AudioMonitorService::class.java)
                 .setAction(AudioMonitorService.ACTION_START)
+                .putExtra(
+                    AudioMonitorService.EXTRA_INPUT_SOURCE,
+                    selectedInputSource()
+                )
         )
 
         bindAudioService()
@@ -362,7 +456,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 4"
+                text = "ANDROID • v6.0 • ALPHA 5"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -501,6 +595,9 @@ class MainActivity : Activity() {
         baselineBar = null
         levelBar = null
         detectionText = null
+        phoneSourceButton = null
+        bluetoothSourceButton = null
+        sourceStatusText = null
         startButton = null
         stopButton = null
         networkText = null
@@ -549,6 +646,67 @@ class MainActivity : Activity() {
         statusCard.addView(permissionText)
 
         body.addView(statusCard)
+
+        body.addView(
+            sectionLabel("AUDIO SOURCE").apply {
+                setPadding(0, dp(20), 0, dp(8))
+            }
+        )
+
+        val sourceCard = card()
+        sourceStatusText = textView(
+            "PHONE MICROPHONE selected",
+            13f,
+            primaryText,
+            role = FontRole.DATA
+        )
+        sourceCard.addView(sourceStatusText)
+        sourceCard.addView(
+            textView(
+                "Bluetooth source uses the microphone in a paired headset or earbuds through the HFP/SCO communication path. No Bluetooth scanning or location access is used.",
+                11f,
+                muted
+            ).apply { setPadding(0, dp(8), 0, 0) }
+        )
+
+        val sourceControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, dp(12), 0, 0)
+        }
+
+        phoneSourceButton = Button(this).apply {
+            text = "PHONE MIC"
+            typeface = uiTypeface
+            setTextColor(primaryText)
+            setBackgroundColor(panel)
+            setOnClickListener {
+                selectInputSource(AudioMonitorService.INPUT_SOURCE_PHONE)
+            }
+        }
+
+        bluetoothSourceButton = Button(this).apply {
+            text = "BLUETOOTH MIC"
+            typeface = uiTypeface
+            setTextColor(primaryText)
+            setBackgroundColor(maroon)
+            setOnClickListener { requestBluetoothSource() }
+        }
+
+        sourceControls.addView(
+            phoneSourceButton,
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                setMargins(0, 0, dp(6), 0)
+            }
+        )
+        sourceControls.addView(
+            bluetoothSourceButton,
+            LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                setMargins(dp(6), 0, 0, 0)
+            }
+        )
+        sourceCard.addView(sourceControls)
+        body.addView(sourceCard)
+        renderInputSourceControls()
 
         body.addView(
             sectionLabel("LIVE LEVEL").apply {
@@ -1350,7 +1508,7 @@ class MainActivity : Activity() {
                 "CALIBRATING • ${snapshot.sampleRate} Hz"
 
             snapshot.running ->
-                "MONITORING • ${snapshot.sampleRate} Hz"
+                "MONITORING • " + snapshot.inputDevice + " • " + snapshot.sampleRate + " Hz"
 
             else ->
                 "Boundary stopped"
@@ -1431,10 +1589,13 @@ class MainActivity : Activity() {
                 "OPEN PERMISSIONS"
             }
 
-        startButton?.isEnabled =
-            !snapshot.running
-        stopButton?.isEnabled =
-            snapshot.running
+        startButton?.isEnabled = !snapshot.running
+        stopButton?.isEnabled = snapshot.running
+
+        renderInputSourceControls()
+        if (snapshot.running) {
+            sourceStatusText?.text = "ACTIVE • " + snapshot.inputDevice
+        }
 
         val broadcastStatus =
             when (snapshot.broadcastState) {
@@ -1553,11 +1714,16 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_MICROPHONE = 100
+        private const val REQUEST_BLUETOOTH_CONNECT = 101
         private const val PREFS_NAME =
             "bciwhisper_permissions"
         private const val KEY_MICROPHONE_PROMPTED =
             "microphone_prompted_once"
         private const val KEY_GATEWAY_URL =
             "broadcast_gateway_url"
+        private const val KEY_BLUETOOTH_PROMPTED =
+            "bluetooth_connect_prompted_once"
+        private const val KEY_INPUT_SOURCE =
+            "input_source"
     }
 }

@@ -41,6 +41,8 @@ class AudioMonitorService : Service() {
         val lockedSeconds: Double,
         val lastEventSummary: String?,
         val framesCaptured: Long,
+        val inputSource: String,
+        val inputDevice: String,
         val lastError: String?,
         val broadcastState: BroadcastPublisher.State,
         val broadcastBytesSent: Long,
@@ -54,6 +56,16 @@ class AudioMonitorService : Service() {
 
     private val publisher =
         BroadcastPublisher()
+
+    private val bluetoothRouter by lazy {
+        BluetoothAudioRouter(this)
+    }
+
+    @Volatile
+    private var inputSource = INPUT_SOURCE_PHONE
+
+    @Volatile
+    private var inputDevice = "Phone microphone"
 
     private lateinit var detector:
         DetectionEngine
@@ -120,8 +132,12 @@ class AudioMonitorService : Service() {
         startId: Int
     ): Int {
         when (intent?.action) {
-            ACTION_START ->
+            ACTION_START -> {
+                inputSource = intent.getStringExtra(EXTRA_INPUT_SOURCE)
+                    ?.takeIf { it == INPUT_SOURCE_PHONE || it == INPUT_SOURCE_BLUETOOTH }
+                    ?: INPUT_SOURCE_PHONE
                 startMonitoring()
+            }
 
             ACTION_STOP ->
                 stopMonitoring()
@@ -202,6 +218,8 @@ class AudioMonitorService : Service() {
                 lastEventSummary,
             framesCaptured =
                 framesCaptured,
+            inputSource = inputSource,
+            inputDevice = inputDevice,
             lastError = lastError,
             broadcastState =
                 broadcast.state,
@@ -287,13 +305,29 @@ class AudioMonitorService : Service() {
                 "failed: $minBuffer"
         }
 
+        val usingBluetooth = inputSource == INPUT_SOURCE_BLUETOOTH
+
+        val route = if (usingBluetooth) {
+            bluetoothRouter.route()
+        } else {
+            bluetoothRouter.clear()
+            BluetoothAudioRouter.RouteResult(
+                routed = true,
+                label = "Phone microphone",
+                device = null
+            )
+        }
+
+        require(route.routed) { route.label }
+        inputDevice = route.label
+
         val source =
-            if (Build.VERSION.SDK_INT >= 24) {
-                MediaRecorder.AudioSource
-                    .UNPROCESSED
+            if (usingBluetooth) {
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            } else if (Build.VERSION.SDK_INT >= 24) {
+                MediaRecorder.AudioSource.UNPROCESSED
             } else {
-                MediaRecorder.AudioSource
-                    .VOICE_RECOGNITION
+                MediaRecorder.AudioSource.VOICE_RECOGNITION
             }
 
         val format =
@@ -311,16 +345,20 @@ class AudioMonitorService : Service() {
                 )
                 .build()
 
-        return AudioRecord.Builder()
+        val built = AudioRecord.Builder()
             .setAudioSource(source)
             .setAudioFormat(format)
             .setBufferSizeInBytes(
                 (minBuffer * 4)
-                    .coerceAtLeast(
-                        32768
-                    )
+                    .coerceAtLeast(32768)
             )
             .build()
+
+        if (usingBluetooth && route.device != null) {
+            bluetoothRouter.prefer(built, route.device)
+        }
+
+        return built
     }
 
     private fun startMonitoring() {
@@ -600,6 +638,7 @@ class AudioMonitorService : Service() {
 
     private fun stopMonitoring() {
         publisher.stop()
+        bluetoothRouter.clear()
 
         if (recorder.active) {
             finishRecording(
@@ -637,6 +676,7 @@ class AudioMonitorService : Service() {
 
     override fun onDestroy() {
         publisher.stop()
+        bluetoothRouter.clear()
 
         if (recorder.active) {
             recorder.abort()
@@ -826,6 +866,15 @@ class AudioMonitorService : Service() {
 
         const val EXTRA_PUBLISHER_TOKEN =
             "publisher_token"
+
+        const val EXTRA_INPUT_SOURCE =
+            "input_source"
+
+        const val INPUT_SOURCE_PHONE =
+            "phone"
+
+        const val INPUT_SOURCE_BLUETOOTH =
+            "bluetooth"
 
         private const val CHANNEL_ID =
             "bciwhisper_audio"

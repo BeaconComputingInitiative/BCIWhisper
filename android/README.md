@@ -65,7 +65,7 @@ The Android hardware boundary replaces the desktop PortAudio/PipeWire layer. Hig
 Requirements:
 
 - JDK 17
-- Android SDK platform 37
+- Android SDK platform 36
 - Android SDK Build Tools 36.0.0
 - Gradle 9.5.0
 - Android Gradle Plugin 9.3.0

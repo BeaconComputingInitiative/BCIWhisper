@@ -1,0 +1,8 @@
+<resources>
+    <color name="bci_black">#080A0C</color>
+    <color name="bci_panel">#11171B</color>
+    <color name="bci_cyan">#00D8E6</color>
+    <color name="bci_maroon">#7A1733</color>
+    <color name="bci_text">#E8F1F3</color>
+    <color name="bci_muted">#8DA0A6</color>
+</resources>

@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.BCIWhisper" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowBackground">@color/bci_black</item>
+        <item name="android:navigationBarColor">@color/bci_black</item>
+        <item name="android:statusBarColor">@color/bci_black</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

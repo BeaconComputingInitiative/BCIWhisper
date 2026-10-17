@@ -158,3 +158,17 @@ The Monitor workspace now exposes decibel telemetry at both key stages:
 - Lock SNR remains shown separately as a relative dB value above the room baseline.
 
 These values are deliberately labeled **dBFS**. Android microphone samples do not provide a trustworthy acoustic dB SPL value without per-device microphone calibration, so the app does not mislabel digital amplitude as SPL.
+
+
+## Alpha 9 — low-signal microphone optimization
+
+The Android capture boundary now probes and uses more of the selected input route while preserving transparent measurements:
+
+- Phone-microphone mode explicitly prefers the Android built-in input device when one is exposed by the device.
+- The app records the selected microphone's reported sample-rate and channel-count capabilities for operator visibility.
+- Bluetooth microphone mode keeps Android's communication-device / HFP route and now explicitly enters communication mode while that route is active, then restores the previous audio mode on exit.
+- The detector's weak-signal threshold is reduced to approximately **4 dB RMS SNR**, while retaining the independent **3 dB spectral-excess** requirement and the two-block confirmation gate.
+- BCIWhisper attempts to disable platform AGC, noise suppression, and acoustic echo cancellation on the AudioRecord session when Android exposes those effects. This prevents weak real signal from being silently suppressed and keeps dBFS telemetry meaningful.
+- The app does **not** digitally boost microphone samples before detection. Boosting would raise noise together with signal and corrupt the established baseline/SNR relationship.
+
+Hardware caveat: Bluetooth HFP microphone bandwidth, codec, gain, and DSP are controlled partly by the headset and Android vendor stack. BCIWhisper can select and optimize the route but cannot recover frequencies or signal below the hardware/codec noise floor.

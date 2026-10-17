@@ -16,6 +16,8 @@ class BluetoothAudioRouter(
             AudioManager::class.java
         )
 
+    private var previousMode: Int? = null
+
     data class RouteResult(
         val routed: Boolean,
         val label: String,
@@ -63,6 +65,11 @@ class BluetoothAudioRouter(
             )
         }
 
+        if (previousMode == null) {
+            previousMode = audioManager.mode
+        }
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+
         val accepted =
             if (Build.VERSION.SDK_INT >= 31) {
                 audioManager.setCommunicationDevice(device)
@@ -107,5 +114,10 @@ class BluetoothAudioRouter(
                 audioManager.stopBluetoothSco()
             }
         }
+
+        previousMode?.let {
+            audioManager.mode = it
+        }
+        previousMode = null
     }
 }

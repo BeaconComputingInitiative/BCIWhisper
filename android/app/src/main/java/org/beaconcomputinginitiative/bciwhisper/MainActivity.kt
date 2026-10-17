@@ -461,7 +461,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 8"
+                text = "ANDROID • v6.0 • ALPHA 9"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -1074,6 +1074,10 @@ class MainActivity : Activity() {
         portCard.addView(
             textView(
                 "✓ Native AudioRecord hardware boundary\n" +
+                    "✓ Built-in mic capability probe + preferred-device routing\n" +
+                    "✓ Bluetooth communication-device routing\n" +
+                    "✓ Low-signal detector tuned to 4 dB RMS SNR / 3 dB spectral excess\n" +
+                    "✓ AGC / noise suppression / echo-cancel disable attempts for measurement integrity\n" +
                     "✓ Foreground microphone service\n" +
                     "✓ One-time microphone permission request\n" +
                     "✓ Secure outbound WSS broadcast publisher\n" +
@@ -1814,7 +1818,11 @@ class MainActivity : Activity() {
 
         renderInputSourceControls()
         if (snapshot.running) {
-            sourceStatusText?.text = "ACTIVE • " + snapshot.inputDevice
+            sourceStatusText?.text =
+                "ACTIVE • " +
+                    snapshot.inputDevice +
+                    "\n" +
+                    snapshot.inputCapabilities
         }
 
         val broadcastStatus =

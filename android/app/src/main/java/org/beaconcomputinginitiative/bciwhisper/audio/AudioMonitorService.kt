@@ -51,6 +51,7 @@ class AudioMonitorService : Service() {
         val framesCaptured: Long,
         val inputSource: String,
         val inputDevice: String,
+        val inputCapabilities: String,
         val lastError: String?,
         val broadcastState: BroadcastPublisher.State,
         val broadcastBytesSent: Long,
@@ -69,11 +70,19 @@ class AudioMonitorService : Service() {
         BluetoothAudioRouter(this)
     }
 
+    private val inputOptimizer by lazy {
+        AudioInputOptimizer(this)
+    }
+
     @Volatile
     private var inputSource = INPUT_SOURCE_PHONE
 
     @Volatile
     private var inputDevice = "Phone microphone"
+
+    @Volatile
+    private var inputCapabilities =
+        "Input capability probe pending"
 
     private lateinit var detector:
         DetectionEngine
@@ -125,7 +134,8 @@ class AudioMonitorService : Service() {
             sampleRate = SAMPLE_RATE,
             blockSize = BLOCK_SIZE,
             baselineSecondsRequired =
-                BASELINE_SECONDS
+                BASELINE_SECONDS,
+            sensitivity = 2.0
         )
 
         recorder = EventRecorder(
@@ -252,6 +262,7 @@ class AudioMonitorService : Service() {
                 framesCaptured,
             inputSource = inputSource,
             inputDevice = inputDevice,
+            inputCapabilities = inputCapabilities,
             lastError = lastError,
             broadcastState =
                 broadcast.state,
@@ -343,10 +354,21 @@ class AudioMonitorService : Service() {
             bluetoothRouter.route()
         } else {
             bluetoothRouter.clear()
+            val builtIn =
+                inputOptimizer
+                    .builtInMicrophone()
+
             BluetoothAudioRouter.RouteResult(
                 routed = true,
-                label = "Phone microphone",
-                device = null
+                label =
+                    builtIn
+                        ?.productName
+                        ?.toString()
+                        ?.takeIf {
+                            it.isNotBlank()
+                        }
+                        ?: "Phone microphone",
+                device = builtIn
             )
         }
 
@@ -386,9 +408,37 @@ class AudioMonitorService : Service() {
             )
             .build()
 
-        if (usingBluetooth && route.device != null) {
-            bluetoothRouter.prefer(built, route.device)
+        if (route.device != null) {
+            if (usingBluetooth) {
+                bluetoothRouter.prefer(
+                    built,
+                    route.device
+                )
+            } else {
+                inputOptimizer.prefer(
+                    built,
+                    route.device
+                )
+            }
         }
+
+        val capability =
+            inputOptimizer.capability(
+                route.device,
+                route.label
+            )
+
+        val processing =
+            inputOptimizer
+                .disableVoiceProcessing(
+                    built
+                )
+
+        inputCapabilities =
+            inputOptimizer.describe(
+                capability,
+                processing
+            )
 
         return built
     }

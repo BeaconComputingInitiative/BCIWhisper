@@ -18,6 +18,7 @@ add_library(
     bciwhisper_whisper
     SHARED
     "${WHISPER_ROOT}/src/whisper.cpp"
+    "${WHISPER_ROOT}/src/aneforge/whisper-aneforge.cpp"
     "${CMAKE_SOURCE_DIR}/jni.c"
 )
 

@@ -20,7 +20,7 @@ class MainActivity : Activity() {
     private val panel = Color.rgb(17, 23, 27)
     private val cyan = Color.rgb(0, 216, 230)
     private val maroon = Color.rgb(122, 23, 51)
-    private val text = Color.rgb(232, 241, 243)
+    private val primaryText = Color.rgb(232, 241, 243)
     private val muted = Color.rgb(141, 160, 166)
 
     private val brandTypeface by lazy {
@@ -217,7 +217,7 @@ class MainActivity : Activity() {
         text = label
         textSize = 9.5f
         isAllCaps = false
-        setTextColor(text)
+        setTextColor(primaryText)
         typeface = uiTypeface
         setBackgroundColor(panel)
         setPadding(dp(2), 0, dp(2), 0)
@@ -289,7 +289,7 @@ class MainActivity : Activity() {
         body.addView(sectionLabel("MICROPHONE"))
 
         val statusCard = card()
-        stateText = textView("Boundary stopped", 16f, text, role = FontRole.UI, bold = true)
+        stateText = textView("Boundary stopped", 16f, primaryText, role = FontRole.UI, bold = true)
         statusCard.addView(stateText)
 
         val statusHint = textView(
@@ -304,7 +304,7 @@ class MainActivity : Activity() {
         body.addView(sectionLabel("LIVE LEVEL").apply { setPadding(0, dp(20), 0, dp(8)) })
 
         val signalCard = card()
-        levelText = textView("RMS -120.0 dBFS   •   PEAK -120.0 dBFS", 15f, text, role = FontRole.DATA)
+        levelText = textView("RMS -120.0 dBFS   •   PEAK -120.0 dBFS", 15f, primaryText, role = FontRole.DATA)
         signalCard.addView(levelText)
 
         levelBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -323,7 +323,7 @@ class MainActivity : Activity() {
         body.addView(sectionLabel("ROOM BASELINE").apply { setPadding(0, dp(20), 0, dp(8)) })
 
         val baselineCard = card()
-        baselineText = textView("Baseline 0.0 / 60.0 s", 15f, text, role = FontRole.DATA)
+        baselineText = textView("Baseline 0.0 / 60.0 s", 15f, primaryText, role = FontRole.DATA)
         baselineCard.addView(baselineText)
 
         baselineBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -363,7 +363,7 @@ class MainActivity : Activity() {
 
         stopButton = Button(this).apply {
             text = "STOP"
-            setTextColor(text)
+            setTextColor(primaryText)
             typeface = uiTypeface
             setBackgroundColor(panel)
             isEnabled = false
@@ -430,7 +430,7 @@ class MainActivity : Activity() {
 
         body.addView(sectionLabel(title))
         val c = card()
-        c.addView(textView(bodyText, 16f, text))
+        c.addView(textView(bodyText, 16f, primaryText))
         c.addView(textView(note, 12f, muted).apply { setPadding(0, dp(16), 0, 0) })
         body.addView(c)
 

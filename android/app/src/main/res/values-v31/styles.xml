@@ -1,0 +1,8 @@
+<resources>
+    <style name="Theme.BCIWhisper.Launch" parent="@style/Theme.BCIWhisper">
+        <item name="android:windowSplashScreenBackground">@color/bci_black</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_bci_launcher_foreground</item>
+        <item name="android:windowSplashScreenAnimationDuration">250</item>
+        <item name="android:postSplashScreenTheme">@style/Theme.BCIWhisper</item>
+    </style>
+</resources>

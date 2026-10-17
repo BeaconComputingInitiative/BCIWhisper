@@ -1,9 +1,13 @@
 <resources>
     <style name="Theme.BCIWhisper" parent="android:style/Theme.Material.NoActionBar">
-        <item name="android:fontFamily">sans</item>
+        <item name="android:fontFamily">@font/rajdhani_medium</item>
         <item name="android:windowBackground">@color/bci_black</item>
         <item name="android:navigationBarColor">@color/bci_black</item>
         <item name="android:statusBarColor">@color/bci_black</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:colorAccent">@color/bci_cyan</item>
     </style>
+
+    <style name="Theme.BCIWhisper.Launch" parent="@style/Theme.BCIWhisper" />
 </resources>

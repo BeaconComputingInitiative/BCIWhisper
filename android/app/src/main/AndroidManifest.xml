@@ -1,13 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Runtime permission: requested once on first launch. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Required to run the microphone capture boundary as a foreground service. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="BCIWhisper"
-        android:theme="@style/Theme.BCIWhisper"
+        android:theme="@style/Theme.BCIWhisper.Launch"
         android:usesCleartextTraffic="false">
 
         <meta-data

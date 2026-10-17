@@ -10,8 +10,8 @@ android {
         applicationId = "org.beaconcomputinginitiative.bciwhisper"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "6.0-android-alpha1"
+        versionCode = 2
+        versionName = "6.0-android-alpha2"
     }
 
     buildTypes {

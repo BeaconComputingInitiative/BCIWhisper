@@ -25,6 +25,7 @@ Only MONITOR is active in the current Android baseline. The remaining workspaces
 - clear Start Monitor / Stop controls
 - stable four-workspace navigation
 - BCI dark interface with cyan/maroon accents
+- BCI typography roles: Oxanium for brand/display, Rajdhani for UI controls and labels, JetBrains Mono for technical telemetry
 - permission-aware microphone startup
 
 ### Pending
@@ -91,3 +92,14 @@ org.beaconcomputinginitiative.bciwhisper
 ## Release status
 
 This remains an Android alpha port and is not yet feature-equivalent to the sealed desktop v6.0 / Script 57.10 release.
+
+
+## Typography
+
+BCIWhisper Android follows the BCI typography system:
+
+- **Oxanium** — BCIWhisper brand name, section/display headings.
+- **Rajdhani** — tabs, buttons, labels, explanatory interface copy.
+- **JetBrains Mono** — RMS/peak levels, baseline timing, and other technical/data values.
+
+The app declares these as Android downloadable font resources through the Google Fonts provider, with deterministic Android fallbacks if the provider is unavailable.

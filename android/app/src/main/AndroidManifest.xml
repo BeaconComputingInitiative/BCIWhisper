@@ -10,6 +10,10 @@
         android:theme="@style/Theme.BCIWhisper"
         android:usesCleartextTraffic="false">
 
+        <meta-data
+            android:name="preloaded_fonts"
+            android:resource="@array/preloaded_fonts" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -23,6 +23,19 @@ class MainActivity : Activity() {
     private val text = Color.rgb(232, 241, 243)
     private val muted = Color.rgb(141, 160, 166)
 
+    private val brandTypeface by lazy {
+        runCatching { resources.getFont(R.font.oxanium_semibold) }
+            .getOrElse { Typeface.create("sans-serif", Typeface.BOLD) }
+    }
+    private val uiTypeface by lazy {
+        runCatching { resources.getFont(R.font.rajdhani_medium) }
+            .getOrElse { Typeface.create("sans-serif-condensed", Typeface.NORMAL) }
+    }
+    private val dataTypeface by lazy {
+        runCatching { resources.getFont(R.font.jetbrains_mono_regular) }
+            .getOrElse { Typeface.MONOSPACE }
+    }
+
     private var audioService: AudioMonitorService? = null
     private var bound = false
     private val handler = Handler(Looper.getMainLooper())
@@ -151,13 +164,14 @@ class MainActivity : Activity() {
             text = "BCIWhisper"
             textSize = 28f
             setTextColor(cyan)
-            setTypeface(typeface, Typeface.BOLD)
+            typeface = brandTypeface
         })
 
         header.addView(TextView(this).apply {
             text = "ANDROID • v6.0 PORT"
             textSize = 11f
             setTextColor(muted)
+            typeface = uiTypeface
         })
 
         root.addView(header)
@@ -204,6 +218,7 @@ class MainActivity : Activity() {
         textSize = 9.5f
         isAllCaps = false
         setTextColor(text)
+        typeface = uiTypeface
         setBackgroundColor(panel)
         setPadding(dp(2), 0, dp(2), 0)
         setOnClickListener { showScreen(screen) }
@@ -274,7 +289,7 @@ class MainActivity : Activity() {
         body.addView(sectionLabel("MICROPHONE"))
 
         val statusCard = card()
-        stateText = textView("Boundary stopped", 16f, text, bold = true)
+        stateText = textView("Boundary stopped", 16f, text, role = FontRole.UI, bold = true)
         statusCard.addView(stateText)
 
         val statusHint = textView(
@@ -289,7 +304,7 @@ class MainActivity : Activity() {
         body.addView(sectionLabel("LIVE LEVEL").apply { setPadding(0, dp(20), 0, dp(8)) })
 
         val signalCard = card()
-        levelText = textView("RMS -120.0 dBFS   •   PEAK -120.0 dBFS", 15f, text)
+        levelText = textView("RMS -120.0 dBFS   •   PEAK -120.0 dBFS", 15f, text, role = FontRole.DATA)
         signalCard.addView(levelText)
 
         levelBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -308,7 +323,7 @@ class MainActivity : Activity() {
         body.addView(sectionLabel("ROOM BASELINE").apply { setPadding(0, dp(20), 0, dp(8)) })
 
         val baselineCard = card()
-        baselineText = textView("Baseline 0.0 / 60.0 s", 15f, text)
+        baselineText = textView("Baseline 0.0 / 60.0 s", 15f, text, role = FontRole.DATA)
         baselineCard.addView(baselineText)
 
         baselineBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
@@ -341,6 +356,7 @@ class MainActivity : Activity() {
         startButton = Button(this).apply {
             text = "START MONITOR"
             setTextColor(Color.WHITE)
+            typeface = uiTypeface
             setBackgroundColor(maroon)
             setOnClickListener { startMonitor() }
         }
@@ -348,6 +364,7 @@ class MainActivity : Activity() {
         stopButton = Button(this).apply {
             text = "STOP"
             setTextColor(text)
+            typeface = uiTypeface
             setBackgroundColor(panel)
             isEnabled = false
             setOnClickListener { stopMonitor() }
@@ -439,19 +456,30 @@ class MainActivity : Activity() {
         text = label
         textSize = 12f
         setTextColor(maroon)
-        setTypeface(typeface, Typeface.BOLD)
+        typeface = brandTypeface
         letterSpacing = 0.08f
         setPadding(0, dp(8), 0, dp(8))
     }
 
-    private fun textView(value: String, size: Float, color: Int, bold: Boolean = false) =
-        TextView(this).apply {
-            text = value
-            textSize = size
-            setTextColor(color)
-            if (bold) setTypeface(typeface, Typeface.BOLD)
-            setLineSpacing(0f, 1.12f)
+    private enum class FontRole { BRAND, UI, DATA }
+
+    private fun textView(
+        value: String,
+        size: Float,
+        color: Int,
+        role: FontRole = FontRole.UI,
+        bold: Boolean = false
+    ) = TextView(this).apply {
+        text = value
+        textSize = size
+        setTextColor(color)
+        typeface = when (role) {
+            FontRole.BRAND -> brandTypeface
+            FontRole.UI -> if (bold) Typeface.create(uiTypeface, Typeface.BOLD) else uiTypeface
+            FontRole.DATA -> dataTypeface
         }
+        setLineSpacing(0f, 1.12f)
+    }
 
     private fun renderSnapshot() {
         if (currentScreen != Screen.MONITOR) return

@@ -1,27 +1,8 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path android:fillColor="#080A0C" android:pathData="M0,0h108v108h-108z" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#00D8E6"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M67,29 C54,20 37,27 33,42 C29,56 36,64 44,69 C50,73 49,81 53,85 C58,90 67,88 71,82 C75,76 73,68 69,65 C66,62 62,64 60,68" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#7A1733"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M59,40 C51,37 44,42 44,50 C44,56 48,59 53,61" />
-    <path
-        android:fillColor="@android:color/transparent"
-        android:strokeColor="#00D8E6"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M16,55 L25,55 L30,45 L36,66 L42,52 L48,58 L55,58" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/bci_black" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/bciwhisper_icon" />
+    </item>
+</layer-list>

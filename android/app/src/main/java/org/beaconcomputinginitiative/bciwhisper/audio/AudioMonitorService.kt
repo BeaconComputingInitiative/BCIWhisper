@@ -41,6 +41,7 @@ class AudioMonitorService : Service() {
         val lockHighHz: Double,
         val lockCenterHz: Double,
         val lockExcessDb: Double,
+        val spectrumBands: FloatArray,
         val recordingActive: Boolean,
         val lockedSeconds: Double,
         val lastEventSummary: String?,
@@ -89,6 +90,7 @@ class AudioMonitorService : Service() {
     @Volatile private var lockHighHz = 8500.0
     @Volatile private var lockCenterHz = 1200.0
     @Volatile private var lockExcessDb = -120.0
+    @Volatile private var spectrumBands = FloatArray(40)
     @Volatile private var framesCaptured = 0L
     @Volatile private var lastError: String? = null
     @Volatile private var lastEventSummary: String? = null
@@ -222,6 +224,7 @@ class AudioMonitorService : Service() {
             lockHighHz = lockHighHz,
             lockCenterHz = lockCenterHz,
             lockExcessDb = lockExcessDb,
+            spectrumBands = spectrumBands.copyOf(),
             recordingActive =
                 recorder.active,
             lockedSeconds =
@@ -423,6 +426,7 @@ class AudioMonitorService : Service() {
             lockHighHz = 8500.0
             lockCenterHz = 1200.0
             lockExcessDb = -120.0
+            spectrumBands = FloatArray(40)
             lastError = null
             lastEventSummary = null
 
@@ -532,6 +536,7 @@ class AudioMonitorService : Service() {
             lockHighHz = detection.lockHighHz
             lockCenterHz = detection.lockCenterHz
             lockExcessDb = detection.lockExcessDb
+            spectrumBands = detection.spectrumBands
 
             if (
                 baselineComplete &&

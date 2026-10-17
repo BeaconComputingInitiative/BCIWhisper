@@ -132,3 +132,16 @@ org.beaconcomputinginitiative.bciwhisper
 - production signing / release-key custody
 
 These are not represented as passed until they have real device or release-key evidence.
+
+
+## Animated 3D spectrum
+
+The Monitor workspace includes a native Kotlin/Canvas spectrum renderer.
+
+- 40 logarithmically grouped bands derived from the detector FFT.
+- attack/release interpolation for stable motion.
+- perspective grid plus depth-history waterfall for a defined 3D analyzer presentation.
+- cyan energy geometry with restrained maroon lock-region accents.
+- adaptive spectral-lock boundaries rendered directly over the spectrum.
+- Android Choreographer drives presentation frames; DSP remains on the capture/detector path.
+- visualization data is presentation-only and cannot block capture, recording, transcription, mastering, or broadcast.

@@ -21,7 +21,8 @@ class DetectionEngine(
         val lockLowHz: Double,
         val lockHighHz: Double,
         val lockCenterHz: Double,
-        val lockExcessDb: Double
+        val lockExcessDb: Double,
+        val spectrumBands: FloatArray
     )
 
     private val baselineDb = ArrayList<Double>()
@@ -128,7 +129,8 @@ class DetectionEngine(
                 lockLowHz = lockLowHz,
                 lockHighHz = lockHighHz,
                 lockCenterHz = lockCenterHz,
-                lockExcessDb = -120.0
+                lockExcessDb = -120.0,
+                spectrumBands = visualBands(spectrum)
             )
         }
 
@@ -185,7 +187,9 @@ class DetectionEngine(
             lockCenterHz =
                 lockCenterHz,
             lockExcessDb =
-                spectral.excessDb
+                spectral.excessDb,
+            spectrumBands =
+                visualBands(spectrum)
         )
     }
 
@@ -451,6 +455,58 @@ class DetectionEngine(
         return power
     }
 
+
+    private fun visualBands(
+        power: DoubleArray
+    ): FloatArray {
+        val out = FloatArray(VISUAL_BANDS)
+        val low = LOW_LIMIT_HZ
+        val high = HIGH_LIMIT_HZ
+        val ratio = (high / low).pow(1.0 / VISUAL_BANDS)
+
+        var edgeLow = low
+        for (band in 0 until VISUAL_BANDS) {
+            val edgeHigh =
+                if (band == VISUAL_BANDS - 1) {
+                    high
+                } else {
+                    edgeLow * ratio
+                }
+
+            var sum = 0.0
+            var count = 0
+
+            for (bin in power.indices) {
+                val hz =
+                    bin.toDouble() * sampleRate / fftSize
+
+                if (hz >= edgeLow && hz < edgeHigh) {
+                    sum += power[bin]
+                    count++
+                }
+            }
+
+            val avg =
+                if (count > 0) sum / count else 0.0
+
+            val db =
+                if (avg > 1e-20) {
+                    10.0 * log10(avg)
+                } else {
+                    -120.0
+                }
+
+            out[band] =
+                ((db + 90.0) / 72.0)
+                    .coerceIn(0.0, 1.0)
+                    .toFloat()
+
+            edgeLow = edgeHigh
+        }
+
+        return out
+    }
+
     private fun requiredSnrDb(): Double =
         max(
             2.0,
@@ -496,5 +552,6 @@ class DetectionEngine(
         private const val LOCK_SMOOTHING = 0.35
         private const val LOCK_MAX_STEP_HZ = 500.0
         private const val LOCK_PRESENCE_DB = 3.0
+        private const val VISUAL_BANDS = 40
     }
 }

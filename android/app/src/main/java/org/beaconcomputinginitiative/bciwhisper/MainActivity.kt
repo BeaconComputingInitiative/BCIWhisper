@@ -19,6 +19,7 @@ import org.beaconcomputinginitiative.bciwhisper.audio.AudioMonitorService
 import org.beaconcomputinginitiative.bciwhisper.audio.ReconstructionMasteringEngine
 import org.beaconcomputinginitiative.bciwhisper.broadcast.BroadcastPublisher
 import org.beaconcomputinginitiative.bciwhisper.transcription.TranscriptionEngine
+import org.beaconcomputinginitiative.bciwhisper.ui.Spectrum3DView
 import java.util.Locale
 
 class MainActivity : Activity() {
@@ -87,6 +88,7 @@ class MainActivity : Activity() {
     private var baselineBar: ProgressBar? = null
     private var levelBar: ProgressBar? = null
     private var detectionText: TextView? = null
+    private var spectrumView: Spectrum3DView? = null
     private var startButton: Button? = null
     private var stopButton: Button? = null
     private var phoneSourceButton: Button? = null
@@ -459,7 +461,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 6"
+                text = "ANDROID • v6.0 • ALPHA 7"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -739,6 +741,41 @@ class MainActivity : Activity() {
         )
 
         body.addView(signalCard)
+
+        body.addView(
+            sectionLabel("3D SPECTRUM").apply {
+                setPadding(0, dp(20), 0, dp(8))
+            }
+        )
+
+        val spectrumCard = card().apply {
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+
+        spectrumView = Spectrum3DView(this).apply {
+            minimumHeight = dp(250)
+        }
+
+        spectrumCard.addView(
+            spectrumView,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(280)
+            )
+        )
+
+        body.addView(spectrumCard)
+
+        body.addView(
+            textView(
+                "Perspective waterfall • adaptive lock band • smoothed 40-band spectrum",
+                10f,
+                muted,
+                role = FontRole.DATA
+            ).apply {
+                setPadding(dp(4), dp(6), 0, 0)
+            }
+        )
 
         body.addView(
             sectionLabel("ROOM BASELINE").apply {
@@ -1686,6 +1723,13 @@ class MainActivity : Activity() {
             "RMS %.1f dBFS   •   PEAK %.1f dBFS",
             snapshot.rmsDbfs,
             snapshot.peakDbfs
+        )
+
+        spectrumView?.submit(
+            snapshot.spectrumBands,
+            snapshot.lockLowHz,
+            snapshot.lockHighHz,
+            snapshot.sampleRate
         )
 
         detectionText?.text =

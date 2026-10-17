@@ -444,6 +444,167 @@ The current Linux build is distributed as a PyInstaller `onedir` package.
 
 ---
 
+## Cross-platform installation
+
+BCIWhisper v6.0 / Script 57.10 is packaged separately for each supported desktop platform. The application code and DSP pipeline are shared, while the native audio, Qt, and transcription components are built on the target operating system.
+
+### Linux x86_64
+
+Release package:
+
+```text
+BCIWhisper-v6.0-Script57.10-Linux-x86_64.tar.gz
+```
+
+Verify the checksum:
+
+```bash
+sha256sum -c BCIWhisper-v6.0-Script57.10-Linux-x86_64.tar.gz.sha256
+```
+
+Extract:
+
+```bash
+tar -xzf BCIWhisper-v6.0-Script57.10-Linux-x86_64.tar.gz
+```
+
+Run the packaged application from the extracted `BCIWhisper` directory.
+
+### Windows x86_64
+
+Windows is distributed as a native PyInstaller `onedir` ZIP:
+
+```text
+BCIWhisper-v6.0-Script57.10-Windows-x86_64.zip
+```
+
+Verify the SHA-256 checksum in PowerShell:
+
+```powershell
+Get-FileHash .\BCIWhisper-v6.0-Script57.10-Windows-x86_64.zip -Algorithm SHA256
+```
+
+Compare the printed hash with:
+
+```text
+BCIWhisper-v6.0-Script57.10-Windows-x86_64.zip.sha256
+```
+
+Extract the ZIP, open the resulting `BCIWhisper` directory, and launch:
+
+```text
+BCIWhisper.exe
+```
+
+BCIWhisper stores packaged Windows application data under:
+
+```text
+%LOCALAPPDATA%\BCIWhisper
+```
+
+The microphone and transcription model remain user-controlled runtime resources.
+
+### macOS Apple Silicon
+
+Apple Silicon builds target native `arm64` Macs.
+
+Release packages:
+
+```text
+BCIWhisper-v6.0-Script57.10-macOS-arm64.dmg
+BCIWhisper-v6.0-Script57.10-macOS-arm64.zip
+```
+
+Verify either package:
+
+```bash
+shasum -a 256 BCIWhisper-v6.0-Script57.10-macOS-arm64.dmg
+shasum -a 256 BCIWhisper-v6.0-Script57.10-macOS-arm64.zip
+```
+
+Compare the result with the corresponding `.sha256` file.
+
+For the DMG:
+
+1. Open the `.dmg`.
+2. Drag `BCIWhisper.app` into `Applications`.
+3. Launch BCIWhisper from Applications.
+4. Approve microphone access when macOS requests it.
+
+### macOS Intel
+
+Intel Mac builds target native `x86_64`.
+
+Release packages:
+
+```text
+BCIWhisper-v6.0-Script57.10-macOS-x86_64.dmg
+BCIWhisper-v6.0-Script57.10-macOS-x86_64.zip
+```
+
+Verification and installation are the same as the Apple Silicon build.
+
+BCIWhisper stores packaged macOS application data under:
+
+```text
+~/Library/Application Support/BCIWhisper
+```
+
+### macOS signing status
+
+The current macOS workflow performs an ad-hoc application signature for bundle integrity testing. It is **not** an Apple Developer ID signature and the application is **not notarized**.
+
+Because of that, Gatekeeper may warn when launching a downloaded build. A future production packaging stage can add Developer ID signing and Apple notarization without changing the BCIWhisper runtime architecture.
+
+### Microphone permission
+
+BCIWhisper's macOS application bundle declares:
+
+```text
+NSMicrophoneUsageDescription
+```
+
+so macOS can request microphone access through its normal privacy controls.
+
+Windows and Linux microphone access is governed by the operating system, audio backend, and the current user's device permissions.
+
+### Transcription model
+
+The Windows and macOS application packages include the Faster-Whisper / CTranslate2 transcription runtime, but **do not embed the speech model weights**.
+
+Download the recommended model separately:
+
+https://huggingface.co/Systran/faster-whisper-small.en
+
+Expected default model directories:
+
+```text
+Linux:
+~/.local/share/BCIWhisper/models/faster-whisper-small.en
+
+Windows:
+%LOCALAPPDATA%\BCIWhisper\models\faster-whisper-small.en
+
+macOS:
+~/Library/Application Support/BCIWhisper/models/faster-whisper-small.en
+```
+
+You can override the model location with:
+
+```text
+BCI_FASTER_WHISPER_MODEL
+```
+
+### Release downloads
+
+All platform packages belong under the same release line:
+
+https://github.com/BeaconComputingInitiative/BCIWhisper/releases/tag/v6.0-script57.10
+
+Each platform artifact should be verified against its accompanying SHA-256 file before execution.
+
+---
+
 ## Release validation
 
 Script 57.10 was promoted after the v6.0 stabilization and runtime-hardening cycle.

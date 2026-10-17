@@ -211,6 +211,44 @@ whisper.cpp
 
 The standalone release is designed around Faster-Whisper / CTranslate2 as the bundled native CPU transcription path. Large Whisper models are stored outside the executable package.
 
+#### Download the transcription model
+
+BCIWhisper's standalone transcription path uses the CTranslate2-format **Faster-Whisper `small.en`** model. The model is distributed separately from the application package.
+
+Official model repository:
+
+https://huggingface.co/Systran/faster-whisper-small.en
+
+The complete model repository should be downloaded, not only `model.bin`, because Faster-Whisper also needs the accompanying configuration and tokenizer files.
+
+With the Hugging Face CLI:
+
+```bash
+hf download Systran/faster-whisper-small.en \
+  --local-dir faster-whisper-small.en
+```
+
+BCIWhisper can then be pointed at that directory with:
+
+```text
+BCI_FASTER_WHISPER_MODEL=/path/to/faster-whisper-small.en
+```
+
+For packaged installs, the default model directory is inside the platform-specific BCIWhisper data directory:
+
+```text
+Linux:
+~/.local/share/BCIWhisper/models/faster-whisper-small.en
+
+Windows:
+%LOCALAPPDATA%\BCIWhisper\models\faster-whisper-small.en
+
+macOS:
+~/Library/Application Support/BCIWhisper/models/faster-whisper-small.en
+```
+
+The model is approximately **486 MB** on Hugging Face and is licensed separately under its upstream model license.
+
 ### Recording library
 
 The application contains dedicated interfaces for:

@@ -1,0 +1,111 @@
+
+# ============================================================
+# BEGIN BCIWHISPER LOCAL-ONLY
+# ============================================================
+
+# Python environments/cache
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+
+# IDE/editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local runtime
+runtime/
+bci_audio_logs/
+logs/
+
+# Machine-learning models
+models/
+
+# Audio / evidence / recordings
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.aac
+*.ogg
+
+recordings/
+evidence/
+
+# Telemetry databases
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Runtime telemetry
+*.jsonl
+*.log
+
+# Gateway secrets
+services/broadcast-gateway/data/local_secrets.json
+services/broadcast-gateway/data/*.secret
+services/broadcast-gateway/data/*.key
+services/broadcast-gateway/data/*.pem
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Backups / recovery copies
+*.bak
+*.backup
+*.old
+*.orig
+*.pre-*
+*~
+
+# Build output
+build/
+dist/
+*.egg-info/
+
+# Generated archives
+*.zip
+*.tar
+*.tar.gz
+
+# Core dumps
+core
+core.*
+
+# ============================================================
+# END BCIWHISPER LOCAL-ONLY
+# ============================================================
+
+# BCIWhisper generated/runtime state
+__pycache__/
+*.pyc
+*.pyo
+build/
+dist/
+
+# Runtime calibration
+bci_room_profile.npz
+
+# Validation output
+stress_logs_57_9/
+bci_stress_57_9.json
+bci_stress_57_9.txt
+bci_stress_57_9_run.log
+bci_stress_57_9_50cycle.log
+bci_verification_57_8.json
+bci_verification_57_8.txt
+bci_verification_57_8_actions.log
+bci_verification_57_9.json
+bci_verification_57_9.txt
+bci_verification_57_9_actions.log
+
+# Local release/build artifacts and engineering checkpoints
+releases/
+versions/

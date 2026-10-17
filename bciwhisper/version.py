@@ -1,0 +1,8 @@
+PROJECT_NAME = "BCIWhisper"
+PROJECT_VERSION = "v6.0"
+SCRIPT_TALLY = 58
+SCRIPT_REVISION = "58.1"
+BUILD = "2026.10.11-r6.35.1"
+ARCHITECTURE_EPOCH = "scripts-25-current-sequenced-modular"
+DEVELOPER_SEAL = "CJB-DEV-2026"
+LEAD_DEVELOPER = "Chance Joaquin Boone"

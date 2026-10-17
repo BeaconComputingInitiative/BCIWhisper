@@ -59,7 +59,8 @@ class AudioInputOptimizer(
             sampleRates =
                 device.sampleRates
                     .filter { it > 0 }
-                    .sortedArrayDescending(),
+                    .sortedDescending()
+                    .toIntArray(),
             channelCounts =
                 device.channelCounts
                     .filter { it > 0 }

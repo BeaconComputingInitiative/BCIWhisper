@@ -5,8 +5,7 @@ import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import kotlin.math.PI
-import kotlin.math.exp
+import kotlin.math.*
 
 class EventRecorder(
     private val directory: File,
@@ -28,53 +27,117 @@ class EventRecorder(
     private var totalFrames = 0L
     private var lockedFrames = 0L
     private var releaseFrames = 0L
-    private val filter = MobileIsolationFilter(sampleRate)
+    private val filter =
+        AdaptiveLockIsolationFilter(
+            sampleRate
+        )
 
     val active: Boolean
         get() = rawWriter != null
 
     val lockedSeconds: Double
-        get() = lockedFrames.toDouble() / sampleRate
+        get() =
+            lockedFrames.toDouble() /
+                sampleRate
 
     val totalSeconds: Double
-        get() = totalFrames.toDouble() / sampleRate
+        get() =
+            totalFrames.toDouble() /
+                sampleRate
 
-    fun start(preRoll: ShortArray?) {
+    fun start(
+        preRoll: ShortArray?,
+        lockLowHz: Double,
+        lockHighHz: Double
+    ) {
         if (active) return
 
         directory.mkdirs()
-        val stamp = SimpleDateFormat(
-            "yyyyMMdd_HHmmss_SSS",
-            Locale.US
-        ).format(Date())
 
-        rawFile = File(directory, "bci_event_${stamp}_raw.wav")
-        isolatedFile = File(directory, "bci_event_${stamp}_isolated.wav")
+        val stamp =
+            SimpleDateFormat(
+                "yyyyMMdd_HHmmss_SSS",
+                Locale.US
+            ).format(Date())
 
-        rawWriter = WavWriter(rawFile!!, sampleRate)
-        isolatedWriter = WavWriter(isolatedFile!!, sampleRate)
+        rawFile =
+            File(
+                directory,
+                "bci_event_${stamp}_raw.wav"
+            )
+
+        isolatedFile =
+            File(
+                directory,
+                "bci_event_${stamp}_isolated.wav"
+            )
+
+        rawWriter =
+            WavWriter(
+                rawFile!!,
+                sampleRate
+            )
+
+        isolatedWriter =
+            WavWriter(
+                isolatedFile!!,
+                sampleRate
+            )
+
         totalFrames = 0
         lockedFrames = 0
         releaseFrames = 0
-        filter.reset()
 
-        if (preRoll != null && preRoll.isNotEmpty()) {
-            append(preRoll, preRoll.size, signalActive = false)
+        filter.reset(
+            lockLowHz,
+            lockHighHz
+        )
+
+        if (
+            preRoll != null &&
+            preRoll.isNotEmpty()
+        ) {
+            append(
+                preRoll,
+                preRoll.size,
+                signalActive = false,
+                lockLowHz = lockLowHz,
+                lockHighHz = lockHighHz
+            )
         }
     }
 
     fun append(
         block: ShortArray,
         count: Int,
-        signalActive: Boolean
+        signalActive: Boolean,
+        lockLowHz: Double,
+        lockHighHz: Double
     ) {
         if (!active) return
 
-        val n = count.coerceAtMost(block.size)
-        rawWriter?.write(block, n)
+        val n =
+            count.coerceAtMost(
+                block.size
+            )
 
-        val isolated = filter.process(block, n)
-        isolatedWriter?.write(isolated, isolated.size)
+        rawWriter?.write(
+            block,
+            n
+        )
+
+        val isolated =
+            filter.process(
+                block,
+                n,
+                lockLowHz,
+                lockHighHz
+            )
+
+        isolatedWriter?.write(
+            isolated,
+            isolated.size
+        )
 
         totalFrames += n
 
@@ -88,9 +151,14 @@ class EventRecorder(
 
     fun shouldStopForLoss(): Boolean =
         active &&
-            releaseFrames.toDouble() / sampleRate >= RELEASE_SECONDS
+            releaseFrames
+                .toDouble() /
+                sampleRate >=
+            RELEASE_SECONDS
 
-    fun finish(reason: String): FinishedEvent {
+    fun finish(
+        reason: String
+    ): FinishedEvent {
         val raw = rawFile
         val isolated = isolatedFile
 
@@ -100,9 +168,14 @@ class EventRecorder(
         rawWriter = null
         isolatedWriter = null
 
-        val locked = lockedSeconds
-        val total = totalSeconds
-        val keep = locked >= MIN_SAVED_LOCK_SECONDS
+        val locked =
+            lockedSeconds
+        val total =
+            totalSeconds
+
+        val keep =
+            locked >=
+                MIN_SAVED_LOCK_SECONDS
 
         if (!keep) {
             raw?.delete()
@@ -117,26 +190,40 @@ class EventRecorder(
 
         return FinishedEvent(
             kept = keep,
-            rawFile = if (keep) raw else null,
-            isolatedFile = if (keep) isolated else null,
-            lockedSeconds = locked,
-            totalSeconds = total,
-            reason = reason
+            rawFile =
+                if (keep) raw else null,
+            isolatedFile =
+                if (keep) isolated else null,
+            lockedSeconds =
+                locked,
+            totalSeconds =
+                total,
+            reason =
+                reason
         )
     }
 
     fun abort() {
         if (!active) return
-        val raw = rawFile
-        val isolated = isolatedFile
 
-        runCatching { rawWriter?.close() }
-        runCatching { isolatedWriter?.close() }
+        val raw = rawFile
+        val isolated =
+            isolatedFile
+
+        runCatching {
+            rawWriter?.close()
+        }
+
+        runCatching {
+            isolatedWriter?.close()
+        }
 
         rawWriter = null
         isolatedWriter = null
+
         raw?.delete()
         isolated?.delete()
+
         rawFile = null
         isolatedFile = null
         totalFrames = 0
@@ -145,74 +232,315 @@ class EventRecorder(
     }
 
     companion object {
-        const val RELEASE_SECONDS = 5.0
-        const val MIN_SAVED_LOCK_SECONDS = 15.0
+        const val RELEASE_SECONDS =
+            5.0
+        const val MIN_SAVED_LOCK_SECONDS =
+            15.0
     }
 }
 
-private class MobileIsolationFilter(
-    sampleRate: Int
+private class AdaptiveLockIsolationFilter(
+    private val sampleRate: Int
 ) {
-    private val hpAlpha: Double
-    private val lpAlpha: Double
+    private val hp1 = Biquad()
+    private val hp2 = Biquad()
+    private val lp1 = Biquad()
+    private val lp2 = Biquad()
 
-    private var previousInput = 0.0
-    private var previousHigh = 0.0
-    private var previousLow = 0.0
+    private var lowHz = 120.0
+    private var highHz = 8000.0
 
-    init {
-        val dt = 1.0 / sampleRate.toDouble()
+    fun reset(
+        initialLowHz: Double,
+        initialHighHz: Double
+    ) {
+        lowHz =
+            targetLow(
+                initialLowHz
+            )
 
-        val highRc = 1.0 / (2.0 * PI * 120.0)
-        hpAlpha = highRc / (highRc + dt)
+        highHz =
+            targetHigh(
+                initialHighHz
+            )
 
-        val lowRc = 1.0 / (2.0 * PI * 8000.0)
-        lpAlpha = dt / (lowRc + dt)
-    }
+        hp1.reset()
+        hp2.reset()
+        lp1.reset()
+        lp2.reset()
 
-    fun reset() {
-        previousInput = 0.0
-        previousHigh = 0.0
-        previousLow = 0.0
+        configure()
     }
 
     fun process(
         input: ShortArray,
-        count: Int
+        count: Int,
+        lockLowHz: Double,
+        lockHighHz: Double
     ): ShortArray {
-        val n = count.coerceAtMost(input.size)
-        val output = ShortArray(n)
+        val targetLow =
+            targetLow(
+                lockLowHz
+            )
+
+        val targetHigh =
+            targetHigh(
+                lockHighHz
+            )
+
+        lowHz +=
+            FILTER_TRACKING *
+                (targetLow - lowHz)
+
+        highHz +=
+            FILTER_TRACKING *
+                (targetHigh - highHz)
+
+        if (
+            highHz - lowHz <
+            MIN_PASSBAND_HZ
+        ) {
+            val center =
+                (highHz + lowHz) *
+                    0.5
+
+            lowHz =
+                center -
+                    MIN_PASSBAND_HZ /
+                    2.0
+
+            highHz =
+                center +
+                    MIN_PASSBAND_HZ /
+                    2.0
+        }
+
+        configure()
+
+        val n =
+            count.coerceAtMost(
+                input.size
+            )
+
+        val output =
+            ShortArray(n)
 
         for (i in 0 until n) {
-            val x = input[i].toDouble()
+            var x =
+                input[i]
+                    .toDouble() /
+                    32768.0
 
-            val high =
-                hpAlpha * (
-                    previousHigh +
-                        x -
-                        previousInput
+            x = hp1.process(x)
+            x = hp2.process(x)
+            x = lp1.process(x)
+            x = lp2.process(x)
+
+            output[i] =
+                (
+                    x.coerceIn(
+                        -1.0,
+                        1.0
+                    ) *
+                        32767.0
                     )
-
-            previousInput = x
-            previousHigh = high
-
-            val low =
-                previousLow +
-                    lpAlpha * (
-                        high -
-                            previousLow
-                        )
-
-            previousLow = low
-
-            output[i] = low
-                .coerceIn(
-                    Short.MIN_VALUE.toDouble(),
-                    Short.MAX_VALUE.toDouble()
-                )
-                .toInt()
-                .toShort()
+                    .roundToInt()
+                    .toShort()
         }
+
+        return output
+    }
+
+    private fun targetLow(
+        lockLowHz: Double
+    ): Double =
+        (
+            lockLowHz -
+                LOW_GUARD_HZ
+            )
+            .coerceIn(
+                45.0,
+                sampleRate *
+                    0.40
+            )
+
+    private fun targetHigh(
+        lockHighHz: Double
+    ): Double =
+        (
+            lockHighHz +
+                HIGH_GUARD_HZ
+            )
+            .coerceIn(
+                300.0,
+                sampleRate *
+                    0.47
+            )
+
+    private fun configure() {
+        hp1.highPass(
+            sampleRate,
+            lowHz,
+            Q_BUTTERWORTH
+        )
+        hp2.highPass(
+            sampleRate,
+            lowHz,
+            Q_BUTTERWORTH
+        )
+        lp1.lowPass(
+            sampleRate,
+            highHz,
+            Q_BUTTERWORTH
+        )
+        lp2.lowPass(
+            sampleRate,
+            highHz,
+            Q_BUTTERWORTH
+        )
+    }
+
+    companion object {
+        private const val LOW_GUARD_HZ =
+            90.0
+        private const val HIGH_GUARD_HZ =
+            140.0
+        private const val MIN_PASSBAND_HZ =
+            420.0
+        private const val FILTER_TRACKING =
+            0.22
+        private const val Q_BUTTERWORTH =
+            0.70710678
+    }
+}
+
+private class Biquad {
+    private var b0 = 1.0
+    private var b1 = 0.0
+    private var b2 = 0.0
+    private var a1 = 0.0
+    private var a2 = 0.0
+
+    private var z1 = 0.0
+    private var z2 = 0.0
+
+    fun reset() {
+        z1 = 0.0
+        z2 = 0.0
+    }
+
+    fun highPass(
+        sampleRate: Int,
+        frequency: Double,
+        q: Double
+    ) {
+        configure(
+            sampleRate,
+            frequency,
+            q,
+            highPass = true
+        )
+    }
+
+    fun lowPass(
+        sampleRate: Int,
+        frequency: Double,
+        q: Double
+    ) {
+        configure(
+            sampleRate,
+            frequency,
+            q,
+            highPass = false
+        )
+    }
+
+    private fun configure(
+        sampleRate: Int,
+        frequency: Double,
+        q: Double,
+        highPass: Boolean
+    ) {
+        val f =
+            frequency.coerceIn(
+                20.0,
+                sampleRate *
+                    0.48
+            )
+
+        val w0 =
+            2.0 *
+                Math.PI *
+                f /
+                sampleRate
+
+        val cosW0 =
+            cos(w0)
+        val sinW0 =
+            sin(w0)
+
+        val alpha =
+            sinW0 /
+                (2.0 * q)
+
+        val rawB0: Double
+        val rawB1: Double
+        val rawB2: Double
+
+        if (highPass) {
+            rawB0 =
+                (1.0 + cosW0) /
+                    2.0
+            rawB1 =
+                -(1.0 + cosW0)
+            rawB2 =
+                (1.0 + cosW0) /
+                    2.0
+        } else {
+            rawB0 =
+                (1.0 - cosW0) /
+                    2.0
+            rawB1 =
+                1.0 - cosW0
+            rawB2 =
+                (1.0 - cosW0) /
+                    2.0
+        }
+
+        val rawA0 =
+            1.0 + alpha
+        val rawA1 =
+            -2.0 * cosW0
+        val rawA2 =
+            1.0 - alpha
+
+        b0 =
+            rawB0 / rawA0
+        b1 =
+            rawB1 / rawA0
+        b2 =
+            rawB2 / rawA0
+        a1 =
+            rawA1 / rawA0
+        a2 =
+            rawA2 / rawA0
+    }
+
+    fun process(
+        input: Double
+    ): Double {
+        val output =
+            b0 * input +
+                z1
+
+        z1 =
+            b1 * input -
+                a1 * output +
+                z2
+
+        z2 =
+            b2 * input -
+                a2 * output
 
         return output
     }
@@ -222,8 +550,14 @@ private class WavWriter(
     private val file: File,
     private val sampleRate: Int
 ) {
-    private val raf = RandomAccessFile(file, "rw")
-    private var dataBytes = 0L
+    private val raf =
+        RandomAccessFile(
+            file,
+            "rw"
+        )
+
+    private var dataBytes =
+        0L
 
     init {
         raf.setLength(0)
@@ -234,19 +568,39 @@ private class WavWriter(
         samples: ShortArray,
         count: Int
     ) {
-        val n = count.coerceAtMost(samples.size)
+        val n =
+            count.coerceAtMost(
+                samples.size
+            )
 
-        val bytes = ByteArray(n * 2)
+        val bytes =
+            ByteArray(
+                n * 2
+            )
+
         var offset = 0
 
         for (i in 0 until n) {
-            val value = samples[i].toInt()
-            bytes[offset++] = (value and 0xff).toByte()
-            bytes[offset++] = ((value ushr 8) and 0xff).toByte()
+            val value =
+                samples[i]
+                    .toInt()
+
+            bytes[offset++] =
+                (value and 0xff)
+                    .toByte()
+
+            bytes[offset++] =
+                (
+                    value ushr 8 and
+                        0xff
+                    )
+                    .toByte()
         }
 
         raf.write(bytes)
-        dataBytes += bytes.size
+
+        dataBytes +=
+            bytes.size
     }
 
     fun close() {
@@ -255,12 +609,20 @@ private class WavWriter(
         raf.close()
     }
 
-    private fun writeHeader(dataSize: Long) {
-        val byteRate = sampleRate * 2
-        val riffSize = 36L + dataSize
+    private fun writeHeader(
+        dataSize: Long
+    ) {
+        val byteRate =
+            sampleRate * 2
+
+        val riffSize =
+            36L + dataSize
 
         raf.writeBytes("RIFF")
-        writeIntLE(riffSize.toInt())
+        writeIntLE(
+            riffSize.toInt()
+        )
+
         raf.writeBytes("WAVE")
         raf.writeBytes("fmt ")
         writeIntLE(16)
@@ -271,25 +633,49 @@ private class WavWriter(
         writeShortLE(2)
         writeShortLE(16)
         raf.writeBytes("data")
-        writeIntLE(dataSize.toInt())
+        writeIntLE(
+            dataSize.toInt()
+        )
     }
 
-    private fun writeIntLE(value: Int) {
+    private fun writeIntLE(
+        value: Int
+    ) {
         raf.write(
             byteArrayOf(
-                (value and 0xff).toByte(),
-                ((value ushr 8) and 0xff).toByte(),
-                ((value ushr 16) and 0xff).toByte(),
-                ((value ushr 24) and 0xff).toByte()
+                (value and 0xff)
+                    .toByte(),
+                (
+                    value ushr 8 and
+                        0xff
+                    )
+                    .toByte(),
+                (
+                    value ushr 16 and
+                        0xff
+                    )
+                    .toByte(),
+                (
+                    value ushr 24 and
+                        0xff
+                    )
+                    .toByte()
             )
         )
     }
 
-    private fun writeShortLE(value: Int) {
+    private fun writeShortLE(
+        value: Int
+    ) {
         raf.write(
             byteArrayOf(
-                (value and 0xff).toByte(),
-                ((value ushr 8) and 0xff).toByte()
+                (value and 0xff)
+                    .toByte(),
+                (
+                    value ushr 8 and
+                        0xff
+                    )
+                    .toByte()
             )
         )
     }

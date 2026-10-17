@@ -7,7 +7,7 @@ class DetectionEngine(
     private val sampleRate: Int,
     private val blockSize: Int,
     private val baselineSecondsRequired: Double = 60.0,
-    private val sensitivity: Double = 1.2
+    private val sensitivity: Double = 2.0
 ) {
     data class Result(
         val baselineComplete: Boolean,
@@ -18,6 +18,8 @@ class DetectionEngine(
         val requiredSnrDb: Double,
         val signalActive: Boolean,
         val confirmedTrigger: Boolean,
+        val lockAcquired: Boolean,
+        val lockSimilarity: Double,
         val lockLowHz: Double,
         val lockHighHz: Double,
         val lockCenterHz: Double,
@@ -44,6 +46,11 @@ class DetectionEngine(
     private var lockHighHz = 8500.0
     private var lockCenterHz = 1200.0
     private var lockInitialized = false
+    private var lockAcquired = false
+
+    private var anchorLowHz = 80.0
+    private var anchorHighHz = 8500.0
+    private var anchorCenterHz = 1200.0
 
     fun reset() {
         baselineDb.clear()
@@ -51,10 +58,19 @@ class DetectionEngine(
         baselineFrames = 0L
         triggerBlocks = 0
         noiseFloorDbfs = -120.0
+        releaseLock()
+    }
+
+    fun releaseLock() {
+        triggerBlocks = 0
         lockLowHz = 80.0
         lockHighHz = 8500.0
         lockCenterHz = 1200.0
         lockInitialized = false
+        lockAcquired = false
+        anchorLowHz = 80.0
+        anchorHighHz = 8500.0
+        anchorCenterHz = 1200.0
     }
 
     fun process(
@@ -103,9 +119,6 @@ class DetectionEngine(
 
             baselineFrames += n.toLong()
 
-            // Publish a live 40th-percentile room-floor estimate during the
-            // 60-second baseline. The final baseline remains authoritative only
-            // when the full calibration interval completes.
             if (baselineDb.size >= 4) {
                 noiseFloorDbfs =
                     percentile(baselineDb, 0.40)
@@ -134,6 +147,8 @@ class DetectionEngine(
                 requiredSnrDb = requiredSnrDb(),
                 signalActive = false,
                 confirmedTrigger = false,
+                lockAcquired = false,
+                lockSimilarity = 0.0,
                 lockLowHz = lockLowHz,
                 lockHighHz = lockHighHz,
                 lockCenterHz = lockCenterHz,
@@ -148,26 +163,52 @@ class DetectionEngine(
             requiredSnrDb()
 
         val spectral =
-            estimateSpectralLock(
-                spectrum
-            )
+            estimateSpectralLock(spectrum)
 
-        val active =
+        val levelPresent =
             snrDb >= required &&
                 spectral.excessDb >= LOCK_PRESENCE_DB
 
-        triggerBlocks =
-            if (active) {
-                triggerBlocks + 1
+        val similarity =
+            if (lockAcquired) {
+                lockSimilarity(spectral)
             } else {
-                0
+                1.0
             }
 
-        if (active) {
+        val sameSignal =
+            levelPresent &&
+                (
+                    !lockAcquired ||
+                        similarity >= MIN_LOCK_SIMILARITY
+                    )
+
+        if (!lockAcquired) {
+            triggerBlocks =
+                if (sameSignal) {
+                    triggerBlocks + 1
+                } else {
+                    0
+                }
+
+            if (
+                triggerBlocks >= MIN_TRIGGER_BLOCKS
+            ) {
+                acquireLock(spectral)
+            } else if (sameSignal) {
+                updateLock(
+                    spectral.lowHz,
+                    spectral.highHz,
+                    spectral.centerHz,
+                    anchorConstrained = false
+                )
+            }
+        } else if (sameSignal) {
             updateLock(
                 spectral.lowHz,
                 spectral.highHz,
-                spectral.centerHz
+                spectral.centerHz,
+                anchorConstrained = true
             )
         }
 
@@ -184,10 +225,13 @@ class DetectionEngine(
             requiredSnrDb =
                 required,
             signalActive =
-                active,
+                sameSignal,
             confirmedTrigger =
-                triggerBlocks >=
-                    MIN_TRIGGER_BLOCKS,
+                lockAcquired,
+            lockAcquired =
+                lockAcquired,
+            lockSimilarity =
+                similarity,
             lockLowHz =
                 lockLowHz,
             lockHighHz =
@@ -207,6 +251,91 @@ class DetectionEngine(
         val centerHz: Double,
         val excessDb: Double
     )
+
+    private fun acquireLock(
+        spectral: SpectralLock
+    ) {
+        anchorLowHz = spectral.lowHz
+        anchorHighHz = spectral.highHz
+        anchorCenterHz = spectral.centerHz
+
+        lockLowHz = anchorLowHz
+        lockHighHz = anchorHighHz
+        lockCenterHz = anchorCenterHz
+
+        lockInitialized = true
+        lockAcquired = true
+    }
+
+    private fun lockSimilarity(
+        candidate: SpectralLock
+    ): Double {
+        val overlap =
+            max(
+                0.0,
+                min(
+                    anchorHighHz,
+                    candidate.highHz
+                ) -
+                    max(
+                        anchorLowHz,
+                        candidate.lowHz
+                    )
+            )
+
+        val union =
+            max(
+                anchorHighHz,
+                candidate.highHz
+            ) -
+                min(
+                    anchorLowHz,
+                    candidate.lowHz
+                )
+
+        val overlapRatio =
+            if (union > 1e-9) {
+                overlap / union
+            } else {
+                0.0
+            }
+
+        val anchorWidth =
+            (anchorHighHz - anchorLowHz)
+                .coerceAtLeast(
+                    MIN_BANDWIDTH_HZ
+                )
+
+        val centerTolerance =
+            max(
+                LOCK_CENTER_TOLERANCE_HZ,
+                anchorWidth *
+                    LOCK_CENTER_TOLERANCE_FRACTION
+            )
+
+        val centerScore =
+            (
+                1.0 -
+                    abs(
+                        candidate.centerHz -
+                            anchorCenterHz
+                    ) /
+                    centerTolerance
+                )
+                .coerceIn(
+                    0.0,
+                    1.0
+                )
+
+        return (
+            0.65 * overlapRatio +
+                0.35 * centerScore
+            )
+            .coerceIn(
+                0.0,
+                1.0
+            )
+    }
 
     private fun estimateSpectralLock(
         power: DoubleArray
@@ -357,7 +486,8 @@ class DetectionEngine(
     private fun updateLock(
         candidateLow: Double,
         candidateHigh: Double,
-        candidateCenter: Double
+        candidateCenter: Double,
+        anchorConstrained: Boolean
     ) {
         if (!lockInitialized) {
             lockLowHz = candidateLow
@@ -367,20 +497,58 @@ class DetectionEngine(
             return
         }
 
+        val constrainedLow =
+            if (anchorConstrained) {
+                candidateLow.coerceIn(
+                    anchorLowHz -
+                        LOCK_ANCHOR_DRIFT_HZ,
+                    anchorLowHz +
+                        LOCK_ANCHOR_DRIFT_HZ
+                )
+            } else {
+                candidateLow
+            }
+
+        val constrainedHigh =
+            if (anchorConstrained) {
+                candidateHigh.coerceIn(
+                    anchorHighHz -
+                        LOCK_ANCHOR_DRIFT_HZ,
+                    anchorHighHz +
+                        LOCK_ANCHOR_DRIFT_HZ
+                )
+            } else {
+                candidateHigh
+            }
+
+        val constrainedCenter =
+            if (anchorConstrained) {
+                candidateCenter.coerceIn(
+                    anchorCenterHz -
+                        LOCK_CENTER_TOLERANCE_HZ,
+                    anchorCenterHz +
+                        LOCK_CENTER_TOLERANCE_HZ
+                )
+            } else {
+                candidateCenter
+            }
+
         lockLowHz =
             smoothAndLimit(
                 lockLowHz,
-                candidateLow
+                constrainedLow
             )
+
         lockHighHz =
             smoothAndLimit(
                 lockHighHz,
-                candidateHigh
+                constrainedHigh
             )
+
         lockCenterHz =
             smoothAndLimit(
                 lockCenterHz,
-                candidateCenter
+                constrainedCenter
             )
     }
 
@@ -463,19 +631,26 @@ class DetectionEngine(
         return power
     }
 
-
     private fun visualBands(
         power: DoubleArray
     ): FloatArray {
         val out = FloatArray(VISUAL_BANDS)
         val low = LOW_LIMIT_HZ
         val high = HIGH_LIMIT_HZ
-        val ratio = (high / low).pow(1.0 / VISUAL_BANDS)
+        val ratio =
+            (high / low)
+                .pow(
+                    1.0 / VISUAL_BANDS
+                )
 
         var edgeLow = low
+
         for (band in 0 until VISUAL_BANDS) {
             val edgeHigh =
-                if (band == VISUAL_BANDS - 1) {
+                if (
+                    band ==
+                    VISUAL_BANDS - 1
+                ) {
                     high
                 } else {
                     edgeLow * ratio
@@ -486,27 +661,43 @@ class DetectionEngine(
 
             for (bin in power.indices) {
                 val hz =
-                    bin.toDouble() * sampleRate / fftSize
+                    bin.toDouble() *
+                        sampleRate /
+                        fftSize
 
-                if (hz >= edgeLow && hz < edgeHigh) {
+                if (
+                    hz >= edgeLow &&
+                    hz < edgeHigh
+                ) {
                     sum += power[bin]
                     count++
                 }
             }
 
             val avg =
-                if (count > 0) sum / count else 0.0
+                if (count > 0) {
+                    sum / count
+                } else {
+                    0.0
+                }
 
             val db =
                 if (avg > 1e-20) {
-                    10.0 * log10(avg)
+                    10.0 *
+                        log10(avg)
                 } else {
                     -120.0
                 }
 
             out[band] =
-                ((db + 90.0) / 72.0)
-                    .coerceIn(0.0, 1.0)
+                (
+                    (db + 90.0) /
+                        72.0
+                    )
+                    .coerceIn(
+                        0.0,
+                        1.0
+                    )
                     .toFloat()
 
             edgeLow = edgeHigh
@@ -557,9 +748,13 @@ class DetectionEngine(
         private const val HIGH_QUANTILE = 0.92
         private const val MIN_BANDWIDTH_HZ = 700.0
         private const val LOCK_MARGIN_HZ = 150.0
-        private const val LOCK_SMOOTHING = 0.35
-        private const val LOCK_MAX_STEP_HZ = 500.0
+        private const val LOCK_SMOOTHING = 0.28
+        private const val LOCK_MAX_STEP_HZ = 180.0
         private const val LOCK_PRESENCE_DB = 3.0
+        private const val MIN_LOCK_SIMILARITY = 0.52
+        private const val LOCK_CENTER_TOLERANCE_HZ = 650.0
+        private const val LOCK_CENTER_TOLERANCE_FRACTION = 0.55
+        private const val LOCK_ANCHOR_DRIFT_HZ = 360.0
         private const val VISUAL_BANDS = 40
     }
 }

@@ -172,3 +172,17 @@ The Android capture boundary now probes and uses more of the selected input rout
 - The app does **not** digitally boost microphone samples before detection. Boosting would raise noise together with signal and corrupt the established baseline/SNR relationship.
 
 Hardware caveat: Bluetooth HFP microphone bandwidth, codec, gain, and DSP are controlled partly by the headset and Android vendor stack. BCIWhisper can select and optimize the route but cannot recover frequencies or signal below the hardware/codec noise floor.
+
+
+## Alpha 10 — identity-preserving spectral lock
+
+The lock now has two distinct stages instead of continuously chasing whichever signal is strongest.
+
+1. **Acquire** — a candidate must satisfy the weak-signal RMS threshold and spectral-excess threshold for two consecutive blocks.
+2. **Anchor** — once confirmed, the occupied frequency band and center frequency become the signal identity anchor.
+3. **Track** — subsequent blocks are accepted only when their frequency-band overlap and center-frequency proximity are sufficiently similar to the anchored signal.
+4. **Constrain** — accepted drift is smoothed and bounded so nearby unrelated sounds cannot drag the lock across the spectrum.
+5. **Isolate** — the isolated WAV now uses a fourth-order adaptive band-pass that follows the locked band with small guard margins, attenuating energy outside the specific tracked signal.
+6. **Release** — after the configured loss grace finishes the event, the detector explicitly releases the anchor before searching for the next signal.
+
+Raw WAV capture is still preserved unchanged. Only the isolated derivative follows the lock-aware moving filter.

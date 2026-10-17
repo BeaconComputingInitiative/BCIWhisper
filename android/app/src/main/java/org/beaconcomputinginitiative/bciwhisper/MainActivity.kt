@@ -461,7 +461,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 9"
+                text = "ANDROID • v6.0 • ALPHA 10"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -1750,7 +1750,9 @@ class MainActivity : Activity() {
                 snapshot.recordingActive ->
                     String.format(
                         Locale.US,
-                        "SIGNAL LOCKED • avg %.1f dBFS • peak %.1f dBFS • SNR +%.1f dB • %.1f s",
+                        "SIGNAL LOCKED • %.0f–%.0f Hz • avg %.1f dBFS • peak %.1f dBFS • SNR +%.1f dB • %.1f s",
+                        snapshot.lockLowHz,
+                        snapshot.lockHighHz,
                         snapshot.lockedSignalDbfs,
                         snapshot.lockedSignalPeakDbfs,
                         snapshot.snrDb,

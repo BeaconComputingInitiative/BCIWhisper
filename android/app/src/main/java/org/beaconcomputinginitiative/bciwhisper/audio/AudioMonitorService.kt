@@ -619,7 +619,9 @@ class AudioMonitorService : Service() {
                     )
 
                 recorder.start(
-                    preRoll
+                    preRoll,
+                    detection.lockLowHz,
+                    detection.lockHighHz
                 )
 
                 // A new retained-event candidate owns a fresh signal-level
@@ -634,7 +636,9 @@ class AudioMonitorService : Service() {
                 recorder.append(
                     block,
                     n,
-                    signalActive
+                    signalActive,
+                    detection.lockLowHz,
+                    detection.lockHighHz
                 )
 
                 if (signalActive) {
@@ -730,6 +734,8 @@ class AudioMonitorService : Service() {
             recorder.finish(
                 reason
             )
+
+        detector.releaseLock()
 
         lastEventSummary =
             if (event.kept) {

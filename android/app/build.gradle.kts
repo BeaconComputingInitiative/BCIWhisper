@@ -11,8 +11,8 @@ android {
         applicationId = "org.beaconcomputinginitiative.bciwhisper"
         minSdk = 28
         targetSdk = 36
-        versionCode = 9
-        versionName = "6.0-android-alpha9"
+        versionCode = 10
+        versionName = "6.0-android-alpha10"
 
         ndk {
             abiFilters += listOf("arm64-v8a")

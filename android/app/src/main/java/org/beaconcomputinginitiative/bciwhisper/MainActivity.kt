@@ -84,6 +84,7 @@ class MainActivity : Activity() {
     private var baselineText: TextView? = null
     private var baselineBar: ProgressBar? = null
     private var levelBar: ProgressBar? = null
+    private var detectionText: TextView? = null
     private var startButton: Button? = null
     private var stopButton: Button? = null
 
@@ -357,7 +358,7 @@ class MainActivity : Activity() {
 
         header.addView(
             TextView(this).apply {
-                text = "ANDROID • v6.0 • ALPHA 2"
+                text = "ANDROID • v6.0 • ALPHA 3"
                 textSize = 10f
                 setTextColor(muted)
                 typeface = uiTypeface
@@ -460,14 +461,7 @@ class MainActivity : Activity() {
                 buildMonitorScreen()
 
             Screen.RECORDINGS ->
-                buildPendingScreen(
-                    "RECORDINGS",
-                    "Captured events will be organized here as " +
-                        "logical recordings with preserved source " +
-                        "audio and derived processing stages.",
-                    "Android recording-library port is the next " +
-                        "functional stage."
-                )
+                buildRecordingsScreen()
 
             Screen.TRANSCRIPTS ->
                 buildPendingScreen(
@@ -510,6 +504,7 @@ class MainActivity : Activity() {
         baselineText = null
         baselineBar = null
         levelBar = null
+        detectionText = null
         startButton = null
         stopButton = null
         networkText = null
@@ -641,6 +636,34 @@ class MainActivity : Activity() {
         )
 
         body.addView(baselineCard)
+
+        body.addView(
+            sectionLabel("DETECTION").apply {
+                setPadding(0, dp(20), 0, dp(8))
+            }
+        )
+
+        val detectionCard = card()
+        detectionText = textView(
+            "Waiting for baseline…",
+            13f,
+            primaryText,
+            role = FontRole.DATA
+        )
+        detectionCard.addView(detectionText)
+        detectionCard.addView(
+            textView(
+                "Two consecutive threshold crossings acquire the event. " +
+                    "Once recording starts, the 5-second release grace follows " +
+                    "signal continuity. Only events with at least 15 seconds " +
+                    "of confirmed signal are retained.",
+                11f,
+                muted
+            ).apply {
+                setPadding(0, dp(8), 0, 0)
+            }
+        )
+        body.addView(detectionCard)
 
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -872,8 +895,12 @@ class MainActivity : Activity() {
                     "✓ Bounded 15-second circular ring\n" +
                     "✓ Live RMS / peak telemetry\n" +
                     "✓ 60-second baseline clock\n" +
-                    "○ Detector / lock logic pending\n" +
-                    "○ Recording library pending\n" +
+                    "✓ Baseline-relative detector and lock lifecycle\n" +
+                    "✓ 5-second release grace\n" +
+                    "✓ 15-second retained-event rule\n" +
+                    "✓ Raw + isolated WAV event recording\n" +
+                    "✓ App-private recording library\n" +
+                    "○ Adaptive spectral lock parity pending\n" +
                     "○ Reconstruction / mastering pending\n" +
                     "○ Manual transcription pending",
                 13f,
@@ -905,6 +932,112 @@ class MainActivity : Activity() {
                 setPadding(0, dp(8), 0, 0)
             }
         )
+
+        scroll.addView(body)
+        return scroll
+    }
+
+    private fun buildRecordingsScreen(): ScrollView {
+        val scroll = ScrollView(this).apply {
+            setBackgroundColor(bg)
+        }
+
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(14), dp(18), dp(30))
+        }
+
+        body.addView(sectionLabel("RECORDINGS"))
+
+        val entries = audioService?.recordings().orEmpty()
+
+        val summary = card()
+        summary.addView(
+            textView(
+                if (entries.isEmpty()) {
+                    "No retained recordings yet."
+                } else {
+                    "${entries.size} retained event(s)"
+                },
+                16f,
+                primaryText,
+                bold = true
+            )
+        )
+        summary.addView(
+            textView(
+                "Events shorter than 15 seconds of confirmed signal are " +
+                    "discarded automatically. Saved events preserve both raw " +
+                    "capture and a non-destructive mobile isolated derivative.",
+                11f,
+                muted
+            ).apply {
+                setPadding(0, dp(8), 0, 0)
+            }
+        )
+
+        val refresh = Button(this).apply {
+            text = "REFRESH"
+            typeface = uiTypeface
+            setTextColor(primaryText)
+            setBackgroundColor(panel)
+            setOnClickListener {
+                showScreen(Screen.RECORDINGS)
+            }
+        }
+        summary.addView(
+            refresh,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(46)
+            ).apply {
+                setMargins(0, dp(12), 0, 0)
+            }
+        )
+        body.addView(summary)
+
+        entries.forEach { entry ->
+            val eventCard = card().apply {
+                setPadding(dp(14), dp(14), dp(14), dp(14))
+            }
+
+            eventCard.addView(
+                textView(
+                    entry.baseName,
+                    13f,
+                    cyan,
+                    role = FontRole.DATA
+                )
+            )
+
+            val mb = entry.totalBytes / (1024.0 * 1024.0)
+            eventCard.addView(
+                textView(
+                    String.format(
+                        Locale.US,
+                        "RAW %s  •  ISOLATED %s  •  %.2f MB",
+                        if (entry.rawFile != null) "✓" else "—",
+                        if (entry.isolatedFile != null) "✓" else "—",
+                        mb
+                    ),
+                    11f,
+                    muted,
+                    role = FontRole.DATA
+                ).apply {
+                    setPadding(0, dp(6), 0, 0)
+                }
+            )
+
+            body.addView(
+                eventCard,
+                LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, dp(10), 0, 0)
+                }
+            )
+        }
 
         scroll.addView(body)
         return scroll
@@ -1081,6 +1214,9 @@ class MainActivity : Activity() {
             !hasPermission ->
                 "MICROPHONE PERMISSION REQUIRED"
 
+            snapshot.recordingActive ->
+                "SIGNAL LOCKED • RECORDING"
+
             snapshot.running &&
                 !snapshot.baselineComplete ->
                 "CALIBRATING • ${snapshot.sampleRate} Hz"
@@ -1098,6 +1234,43 @@ class MainActivity : Activity() {
             snapshot.rmsDbfs,
             snapshot.peakDbfs
         )
+
+        detectionText?.text =
+            when {
+                !snapshot.baselineComplete ->
+                    String.format(
+                        Locale.US,
+                        "BASELINING • %.1f / 60.0 s",
+                        snapshot.baselineSeconds
+                    )
+
+                snapshot.recordingActive ->
+                    String.format(
+                        Locale.US,
+                        "SIGNAL LOCKED • SNR %.1f dB • %.1f s confirmed",
+                        snapshot.snrDb,
+                        snapshot.lockedSeconds
+                    )
+
+                snapshot.signalActive ->
+                    String.format(
+                        Locale.US,
+                        "TRIGGER ACTIVE • SNR %.1f dB • floor %.1f dBFS",
+                        snapshot.snrDb,
+                        snapshot.noiseFloorDbfs
+                    )
+
+                snapshot.lastEventSummary != null ->
+                    snapshot.lastEventSummary
+
+                else ->
+                    String.format(
+                        Locale.US,
+                        "MONITORING • SNR %.1f dB • floor %.1f dBFS",
+                        snapshot.snrDb,
+                        snapshot.noiseFloorDbfs
+                    )
+            }
 
         val peakForMeter =
             snapshot.peakDbfs.coerceIn(-60.0, 0.0)

@@ -21,11 +21,11 @@ The current public release is:
 - **Script revision:** 57.10
 - **Script tally:** 57
 - **Engineering build:** `2026.10.17-r6.34.10`
-- **Current release platform:** Linux x86_64
+- **Current release platforms:** Linux x86_64, Windows x86_64, macOS ARM64
 - **GUI framework:** PyQt6 / Qt 6
 - **Developer seal:** `CJB-DEV-2026`
 
-BCIWhisper is being prepared for Windows and macOS builds in addition to Linux.
+BCIWhisper v6.0 / Script 57.10 is available for Linux x86_64, Windows x86_64, and macOS ARM64 / Apple Silicon.
 
 ---
 
@@ -400,9 +400,9 @@ Autonomous acceptance/verification tooling.
 
 ---
 
-## Linux release
+## Current release
 
-The current public Linux release is:
+The current public release is:
 
 **BCIWhisper v6.0 — Script 57.10**
 
@@ -531,18 +531,6 @@ For the DMG:
 3. Launch BCIWhisper from Applications.
 4. Approve microphone access when macOS requests it.
 
-### macOS Intel
-
-Intel Mac builds target native `x86_64`.
-
-Release packages:
-
-```text
-BCIWhisper-v6.0-Script57.10-macOS-x86_64.dmg
-BCIWhisper-v6.0-Script57.10-macOS-x86_64.zip
-```
-
-Verification and installation are the same as the Apple Silicon build.
 
 BCIWhisper stores packaged macOS application data under:
 
@@ -676,13 +664,13 @@ Windows -> WASAPI through PortAudio
 macOS   -> CoreAudio through PortAudio
 ```
 
-The project is currently preparing:
+The current v6.0 / Script 57.10 release targets:
 
-- Windows x86_64 builds
-- macOS Apple Silicon builds
-- macOS Intel builds
+- Linux x86_64
+- Windows x86_64
+- macOS ARM64 / Apple Silicon
 
-Those builds should be treated as separate release artifacts and validated independently before being promoted alongside the Linux release.
+These are separate native release artifacts and should be validated independently. Intel macOS is not a supported release target for Script 57.10.
 
 ---
 
@@ -759,7 +747,7 @@ Model data is intentionally kept outside the executable package.
 
 ## Development status
 
-**v6.0 / Script 57.10** is the current stable Linux release baseline.
+**v6.0 / Script 57.10** is the current stable cross-platform release baseline for Linux x86_64, Windows x86_64, and macOS ARM64 / Apple Silicon.
 
 The next development cycle is intended to continue beyond the 57.x stabilization line without modifying the sealed 57.10 release artifact.
 
@@ -848,7 +836,7 @@ Until a license is explicitly added, do not assume that the repository grants th
 
 ## Release integrity
 
-For **BCIWhisper v6.0 — Script 57.10 Linux x86_64**:
+For **BCIWhisper v6.0 — Script 57.10**, verify each downloaded platform artifact against its accompanying checksum file. The Linux x86_64 archive SHA-256 is:
 
 ```text
 SHA-256

@@ -6,18 +6,32 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.*
 import android.provider.Settings
+import android.text.InputType
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.*
 import org.beaconcomputinginitiative.bciwhisper.audio.AudioMonitorService
+import org.beaconcomputinginitiative.bciwhisper.broadcast.BroadcastPublisher
 import java.util.Locale
 
 class MainActivity : Activity() {
-    private enum class Screen { MONITOR, RECORDINGS, TRANSCRIPTS, MASTERING }
-    private enum class FontRole { BRAND, UI, DATA }
+    private enum class Screen {
+        MONITOR,
+        RECORDINGS,
+        TRANSCRIPTS,
+        MASTERING
+    }
+
+    private enum class FontRole {
+        BRAND,
+        UI,
+        DATA
+    }
 
     private val bg = Color.rgb(8, 10, 12)
     private val panel = Color.rgb(17, 23, 27)
@@ -31,18 +45,27 @@ class MainActivity : Activity() {
     }
 
     private val brandTypeface by lazy {
-        runCatching { resources.getFont(R.font.oxanium_semibold) }
-            .getOrElse { Typeface.create("sans-serif", Typeface.BOLD) }
+        runCatching {
+            resources.getFont(R.font.oxanium_semibold)
+        }.getOrElse {
+            Typeface.create("sans-serif", Typeface.BOLD)
+        }
     }
 
     private val uiTypeface by lazy {
-        runCatching { resources.getFont(R.font.rajdhani_medium) }
-            .getOrElse { Typeface.create("sans-serif-condensed", Typeface.NORMAL) }
+        runCatching {
+            resources.getFont(R.font.rajdhani_medium)
+        }.getOrElse {
+            Typeface.create("sans-serif-condensed", Typeface.NORMAL)
+        }
     }
 
     private val dataTypeface by lazy {
-        runCatching { resources.getFont(R.font.jetbrains_mono_regular) }
-            .getOrElse { Typeface.MONOSPACE }
+        runCatching {
+            resources.getFont(R.font.jetbrains_mono_regular)
+        }.getOrElse {
+            Typeface.MONOSPACE
+        }
     }
 
     private var audioService: AudioMonitorService? = null
@@ -64,11 +87,22 @@ class MainActivity : Activity() {
     private var startButton: Button? = null
     private var stopButton: Button? = null
 
+    private var networkText: TextView? = null
+    private var gatewayEdit: EditText? = null
+    private var tokenEdit: EditText? = null
+    private var broadcastStatusText: TextView? = null
+    private var goLiveButton: Button? = null
+    private var stopLiveButton: Button? = null
+
     private var currentScreen = Screen.MONITOR
 
     private val connection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-            audioService = (binder as? AudioMonitorService.LocalBinder)?.service()
+        override fun onServiceConnected(
+            name: ComponentName?,
+            binder: IBinder?
+        ) {
+            audioService =
+                (binder as? AudioMonitorService.LocalBinder)?.service()
             bound = audioService != null
             renderSnapshot()
         }
@@ -83,14 +117,16 @@ class MainActivity : Activity() {
     private val poll = object : Runnable {
         override fun run() {
             renderSnapshot()
-            handler.postDelayed(this, 100)
+            handler.postDelayed(this, 250)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         window.statusBarColor = bg
         window.navigationBarColor = bg
+
         setContentView(buildShell())
         showScreen(Screen.MONITOR)
         maybeRequestMicrophonePermissionOnce()
@@ -109,10 +145,12 @@ class MainActivity : Activity() {
 
     override fun onStop() {
         handler.removeCallbacks(poll)
+
         if (bound) {
             unbindService(connection)
             bound = false
         }
+
         audioService = null
         super.onStop()
     }
@@ -122,13 +160,20 @@ class MainActivity : Activity() {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
         if (requestCode == REQUEST_MICROPHONE) {
             renderSnapshot()
+
             if (!hasMicrophonePermission()) {
                 Toast.makeText(
                     this,
-                    "Microphone access was not enabled. BCIWhisper will not ask again automatically.",
+                    "Microphone access was not enabled. " +
+                        "BCIWhisper will not ask again automatically.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -136,16 +181,25 @@ class MainActivity : Activity() {
     }
 
     private fun hasMicrophonePermission(): Boolean =
-        checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        checkSelfPermission(Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun maybeRequestMicrophonePermissionOnce() {
         if (hasMicrophonePermission()) return
 
-        val alreadyPrompted = prefs.getBoolean(KEY_MICROPHONE_PROMPTED, false)
+        val alreadyPrompted =
+            prefs.getBoolean(KEY_MICROPHONE_PROMPTED, false)
+
         if (alreadyPrompted) return
 
-        prefs.edit().putBoolean(KEY_MICROPHONE_PROMPTED, true).apply()
-        requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE)
+        prefs.edit()
+            .putBoolean(KEY_MICROPHONE_PROMPTED, true)
+            .apply()
+
+        requestPermissions(
+            arrayOf(Manifest.permission.RECORD_AUDIO),
+            REQUEST_MICROPHONE
+        )
     }
 
     private fun openAppPermissionSettings() {
@@ -171,16 +225,20 @@ class MainActivity : Activity() {
         if (!hasMicrophonePermission()) {
             Toast.makeText(
                 this,
-                "Microphone permission is required. Enable it in App permissions.",
+                "Microphone permission is required. " +
+                    "Enable it in App permissions.",
                 Toast.LENGTH_LONG
             ).show()
+
             openAppPermissionSettings()
             return
         }
 
-        val intent = Intent(this, AudioMonitorService::class.java)
-            .setAction(AudioMonitorService.ACTION_START)
-        startForegroundService(intent)
+        startForegroundService(
+            Intent(this, AudioMonitorService::class.java)
+                .setAction(AudioMonitorService.ACTION_START)
+        )
+
         bindAudioService()
     }
 
@@ -188,6 +246,72 @@ class MainActivity : Activity() {
         startService(
             Intent(this, AudioMonitorService::class.java)
                 .setAction(AudioMonitorService.ACTION_STOP)
+        )
+    }
+
+    private fun goLive() {
+        if (!hasMicrophonePermission()) {
+            openAppPermissionSettings()
+            return
+        }
+
+        val publishUrl =
+            gatewayEdit?.text?.toString()?.trim().orEmpty()
+        val token =
+            tokenEdit?.text?.toString().orEmpty()
+
+        if (!publishUrl.startsWith("wss://")) {
+            Toast.makeText(
+                this,
+                "Use a secure wss:// BCI Broadcast Gateway URL.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        if (token.isBlank()) {
+            Toast.makeText(
+                this,
+                "Enter the publisher token.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        if (!isNetworkAvailable()) {
+            Toast.makeText(
+                this,
+                "No active network connection.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
+        prefs.edit()
+            .putString(KEY_GATEWAY_URL, publishUrl)
+            .apply()
+
+        startForegroundService(
+            Intent(this, AudioMonitorService::class.java)
+                .setAction(AudioMonitorService.ACTION_GO_LIVE)
+                .putExtra(
+                    AudioMonitorService.EXTRA_PUBLISH_URL,
+                    publishUrl
+                )
+                .putExtra(
+                    AudioMonitorService.EXTRA_PUBLISHER_TOKEN,
+                    token
+                )
+        )
+
+        tokenEdit?.text?.clear()
+        bindAudioService()
+    }
+
+    private fun stopLive() {
+        startService(
+            Intent(this, AudioMonitorService::class.java)
+                .setAction(AudioMonitorService.ACTION_STOP_LIVE)
         )
     }
 
@@ -203,32 +327,43 @@ class MainActivity : Activity() {
 
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(12))
+            setPadding(
+                dp(20),
+                dp(16),
+                dp(20),
+                dp(12)
+            )
             setBackgroundColor(bg)
         }
 
-        header.addView(TextView(this).apply {
-            text = "BCIWhisper"
-            textSize = 28f
-            setTextColor(cyan)
-            typeface = brandTypeface
-        })
+        header.addView(
+            TextView(this).apply {
+                text = "BCIWhisper"
+                textSize = 28f
+                setTextColor(cyan)
+                typeface = brandTypeface
+            }
+        )
 
-        header.addView(TextView(this).apply {
-            text = "BEACON COMPUTING INITIATIVE"
-            textSize = 11f
-            setTextColor(primaryText)
-            typeface = brandTypeface
-            letterSpacing = 0.05f
-        })
+        header.addView(
+            TextView(this).apply {
+                text = "BEACON COMPUTING INITIATIVE"
+                textSize = 11f
+                setTextColor(primaryText)
+                typeface = brandTypeface
+                letterSpacing = 0.05f
+            }
+        )
 
-        header.addView(TextView(this).apply {
-            text = "ANDROID • v6.0 • ALPHA 2"
-            textSize = 10f
-            setTextColor(muted)
-            typeface = uiTypeface
-            setPadding(0, dp(2), 0, 0)
-        })
+        header.addView(
+            TextView(this).apply {
+                text = "ANDROID • v6.0 • ALPHA 2"
+                textSize = 10f
+                setTextColor(muted)
+                typeface = uiTypeface
+                setPadding(0, dp(2), 0, 0)
+            }
+        )
 
         root.addView(header)
 
@@ -239,14 +374,26 @@ class MainActivity : Activity() {
         }
 
         monitorTab = tabButton("MONITOR", Screen.MONITOR)
-        recordingsTab = tabButton("RECORDINGS", Screen.RECORDINGS)
-        transcriptsTab = tabButton("TRANSCRIPTS", Screen.TRANSCRIPTS)
-        masteringTab = tabButton("MASTERING", Screen.MASTERING)
+        recordingsTab =
+            tabButton("RECORDINGS", Screen.RECORDINGS)
+        transcriptsTab =
+            tabButton("TRANSCRIPTS", Screen.TRANSCRIPTS)
+        masteringTab =
+            tabButton("MASTERING", Screen.MASTERING)
 
-        listOf(monitorTab, recordingsTab, transcriptsTab, masteringTab).forEach {
+        listOf(
+            monitorTab,
+            recordingsTab,
+            transcriptsTab,
+            masteringTab
+        ).forEach {
             tabs.addView(
                 it,
-                LinearLayout.LayoutParams(0, dp(44), 1f).apply {
+                LinearLayout.LayoutParams(
+                    0,
+                    dp(44),
+                    1f
+                ).apply {
                     setMargins(dp(3), 0, dp(3), 0)
                 }
             )
@@ -270,7 +417,10 @@ class MainActivity : Activity() {
         return root
     }
 
-    private fun tabButton(label: String, screen: Screen) = Button(this).apply {
+    private fun tabButton(
+        label: String,
+        screen: Screen
+    ) = Button(this).apply {
         text = label
         textSize = 9.5f
         isAllCaps = false
@@ -278,7 +428,9 @@ class MainActivity : Activity() {
         typeface = uiTypeface
         setBackgroundColor(panel)
         setPadding(dp(2), 0, dp(2), 0)
-        setOnClickListener { showScreen(screen) }
+        setOnClickListener {
+            showScreen(screen)
+        }
     }
 
     private fun showScreen(screen: Screen) {
@@ -291,27 +443,53 @@ class MainActivity : Activity() {
             transcriptsTab to Screen.TRANSCRIPTS,
             masteringTab to Screen.MASTERING
         ).forEach { (button, target) ->
-            button.setTextColor(if (target == screen) cyan else muted)
-            button.setBackgroundColor(if (target == screen) Color.rgb(22, 42, 48) else panel)
+            button.setTextColor(
+                if (target == screen) cyan else muted
+            )
+            button.setBackgroundColor(
+                if (target == screen) {
+                    Color.rgb(22, 42, 48)
+                } else {
+                    panel
+                }
+            )
         }
 
         val view = when (screen) {
-            Screen.MONITOR -> buildMonitorScreen()
-            Screen.RECORDINGS -> buildPendingScreen(
-                "RECORDINGS",
-                "Captured events will be organized here as logical recordings with preserved source audio and derived processing stages.",
-                "Android recording-library port is the next functional stage."
-            )
-            Screen.TRANSCRIPTS -> buildPendingScreen(
-                "TRANSCRIPTS",
-                "Transcription remains operator initiated. This workspace will list completed and pending transcript jobs without coupling speech recognition to capture.",
-                "Manual transcription backend is not enabled in this Android baseline yet."
-            )
-            Screen.MASTERING -> buildPendingScreen(
-                "MASTERING",
-                "The Android mastering workspace will remain non-destructive: original capture stays preserved while preview and mastered derivatives are created separately.",
-                "Reconstruction and mastering DSP are not enabled in this Android baseline yet."
-            )
+            Screen.MONITOR ->
+                buildMonitorScreen()
+
+            Screen.RECORDINGS ->
+                buildPendingScreen(
+                    "RECORDINGS",
+                    "Captured events will be organized here as " +
+                        "logical recordings with preserved source " +
+                        "audio and derived processing stages.",
+                    "Android recording-library port is the next " +
+                        "functional stage."
+                )
+
+            Screen.TRANSCRIPTS ->
+                buildPendingScreen(
+                    "TRANSCRIPTS",
+                    "Transcription remains operator initiated. " +
+                        "This workspace will list completed and " +
+                        "pending transcript jobs without coupling " +
+                        "speech recognition to capture.",
+                    "Manual transcription backend is not enabled " +
+                        "in this Android baseline yet."
+                )
+
+            Screen.MASTERING ->
+                buildPendingScreen(
+                    "MASTERING",
+                    "The Android mastering workspace will remain " +
+                        "non-destructive: original capture stays " +
+                        "preserved while preview and mastered " +
+                        "derivatives are created separately.",
+                    "Reconstruction and mastering DSP are not " +
+                        "enabled in this Android baseline yet."
+                )
         }
 
         content.addView(
@@ -321,6 +499,7 @@ class MainActivity : Activity() {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         )
+
         renderSnapshot()
     }
 
@@ -333,6 +512,12 @@ class MainActivity : Activity() {
         levelBar = null
         startButton = null
         stopButton = null
+        networkText = null
+        gatewayEdit = null
+        tokenEdit = null
+        broadcastStatusText = null
+        goLiveButton = null
+        stopLiveButton = null
 
         val scroll = ScrollView(this).apply {
             isFillViewport = true
@@ -341,12 +526,18 @@ class MainActivity : Activity() {
 
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(8), dp(18), dp(30))
+            setPadding(
+                dp(18),
+                dp(8),
+                dp(18),
+                dp(30)
+            )
         }
 
         body.addView(sectionLabel("MICROPHONE"))
 
         val statusCard = card()
+
         stateText = textView(
             "Boundary stopped",
             16f,
@@ -357,7 +548,8 @@ class MainActivity : Activity() {
         statusCard.addView(stateText)
 
         permissionText = textView(
-            "Microphone access is used only for local audio analysis while monitoring is active.",
+            "Microphone access is used only for local audio " +
+                "analysis while monitoring is active.",
             12f,
             muted
         ).apply {
@@ -367,11 +559,14 @@ class MainActivity : Activity() {
 
         body.addView(statusCard)
 
-        body.addView(sectionLabel("LIVE LEVEL").apply {
-            setPadding(0, dp(20), 0, dp(8))
-        })
+        body.addView(
+            sectionLabel("LIVE LEVEL").apply {
+                setPadding(0, dp(20), 0, dp(8))
+            }
+        )
 
         val signalCard = card()
+
         levelText = textView(
             "RMS -120.0 dBFS   •   PEAK -120.0 dBFS",
             15f,
@@ -380,7 +575,11 @@ class MainActivity : Activity() {
         )
         signalCard.addView(levelText)
 
-        levelBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+        levelBar = ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
             max = 600
             progress = 0
         }
@@ -397,11 +596,14 @@ class MainActivity : Activity() {
 
         body.addView(signalCard)
 
-        body.addView(sectionLabel("ROOM BASELINE").apply {
-            setPadding(0, dp(20), 0, dp(8))
-        })
+        body.addView(
+            sectionLabel("ROOM BASELINE").apply {
+                setPadding(0, dp(20), 0, dp(8))
+            }
+        )
 
         val baselineCard = card()
+
         baselineText = textView(
             "Baseline 0.0 / 60.0 s",
             15f,
@@ -410,7 +612,11 @@ class MainActivity : Activity() {
         )
         baselineCard.addView(baselineText)
 
-        baselineBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+        baselineBar = ProgressBar(
+            this,
+            null,
+            android.R.attr.progressBarStyleHorizontal
+        ).apply {
             max = 600
             progress = 0
         }
@@ -427,7 +633,8 @@ class MainActivity : Activity() {
 
         baselineCard.addView(
             textView(
-                "The 60-second baseline runs without blocking the interface.",
+                "The 60-second baseline runs without blocking " +
+                    "the interface.",
                 12f,
                 muted
             )
@@ -438,7 +645,12 @@ class MainActivity : Activity() {
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(0, dp(22), 0, dp(6))
+            setPadding(
+                0,
+                dp(22),
+                0,
+                dp(6)
+            )
         }
 
         startButton = Button(this).apply {
@@ -446,7 +658,9 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             typeface = uiTypeface
             setBackgroundColor(maroon)
-            setOnClickListener { startMonitor() }
+            setOnClickListener {
+                startMonitor()
+            }
         }
 
         stopButton = Button(this).apply {
@@ -455,45 +669,213 @@ class MainActivity : Activity() {
             typeface = uiTypeface
             setBackgroundColor(panel)
             isEnabled = false
-            setOnClickListener { stopMonitor() }
+            setOnClickListener {
+                stopMonitor()
+            }
         }
 
         controls.addView(
             startButton,
-            LinearLayout.LayoutParams(0, dp(52), 2f).apply {
+            LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                2f
+            ).apply {
                 setMargins(0, 0, dp(6), 0)
             }
         )
 
         controls.addView(
             stopButton,
-            LinearLayout.LayoutParams(0, dp(52), 1f).apply {
+            LinearLayout.LayoutParams(
+                0,
+                dp(52),
+                1f
+            ).apply {
                 setMargins(dp(6), 0, 0, 0)
             }
         )
 
         body.addView(controls)
 
-        body.addView(sectionLabel("ANDROID PORT STATUS").apply {
-            setPadding(0, dp(22), 0, dp(8))
-        })
+        body.addView(
+            sectionLabel("BROADCAST").apply {
+                setPadding(0, dp(22), 0, dp(8))
+            }
+        )
+
+        val broadcastCard = card()
+
+        networkText = textView(
+            networkSummary(),
+            12f,
+            muted
+        )
+        broadcastCard.addView(networkText)
+
+        broadcastStatusText = textView(
+            "OFFLINE",
+            14f,
+            primaryText,
+            role = FontRole.DATA
+        ).apply {
+            setPadding(0, dp(8), 0, dp(10))
+        }
+        broadcastCard.addView(broadcastStatusText)
+
+        broadcastCard.addView(
+            textView(
+                "Gateway",
+                11f,
+                maroon,
+                role = FontRole.BRAND
+            )
+        )
+
+        gatewayEdit = EditText(this).apply {
+            setText(
+                prefs.getString(
+                    KEY_GATEWAY_URL,
+                    ""
+                ).orEmpty()
+            )
+            hint =
+                "wss://gateway.example/api/v1/publish/bciwhisper-main"
+            setHintTextColor(muted)
+            setTextColor(primaryText)
+            typeface = dataTypeface
+            setSingleLine(true)
+            inputType =
+                InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_URI
+            setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+            )
+        }
+        broadcastCard.addView(gatewayEdit)
+
+        broadcastCard.addView(
+            textView(
+                "Publisher token",
+                11f,
+                maroon,
+                role = FontRole.BRAND
+            ).apply {
+                setPadding(0, dp(12), 0, 0)
+            }
+        )
+
+        tokenEdit = EditText(this).apply {
+            hint = "Token is used for this connection only"
+            setHintTextColor(muted)
+            setTextColor(primaryText)
+            typeface = dataTypeface
+            setSingleLine(true)
+            inputType =
+                InputType.TYPE_CLASS_TEXT or
+                    InputType.TYPE_TEXT_VARIATION_PASSWORD
+            setPadding(
+                dp(8),
+                dp(8),
+                dp(8),
+                dp(8)
+            )
+        }
+        broadcastCard.addView(tokenEdit)
+
+        val broadcastControls =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(0, dp(14), 0, 0)
+            }
+
+        goLiveButton = Button(this).apply {
+            text = "GO LIVE"
+            setTextColor(Color.WHITE)
+            typeface = uiTypeface
+            setBackgroundColor(maroon)
+            setOnClickListener {
+                goLive()
+            }
+        }
+
+        stopLiveButton = Button(this).apply {
+            text = "STOP LIVE"
+            setTextColor(primaryText)
+            typeface = uiTypeface
+            setBackgroundColor(panel)
+            isEnabled = false
+            setOnClickListener {
+                stopLive()
+            }
+        }
+
+        broadcastControls.addView(
+            goLiveButton,
+            LinearLayout.LayoutParams(
+                0,
+                dp(50),
+                1f
+            ).apply {
+                setMargins(0, 0, dp(6), 0)
+            }
+        )
+
+        broadcastControls.addView(
+            stopLiveButton,
+            LinearLayout.LayoutParams(
+                0,
+                dp(50),
+                1f
+            ).apply {
+                setMargins(dp(6), 0, 0, 0)
+            }
+        )
+
+        broadcastCard.addView(broadcastControls)
+
+        broadcastCard.addView(
+            textView(
+                "Mobile data works because the phone publishes " +
+                    "outbound to a public WSS gateway. No inbound " +
+                    "port or carrier port-forwarding is required. " +
+                    "The current mobile uplink is PCM16 mono at " +
+                    "about 0.71 Mbit/s before gateway MP3 transcode.",
+                11f,
+                muted
+            ).apply {
+                setPadding(0, dp(12), 0, 0)
+            }
+        )
+
+        body.addView(broadcastCard)
+
+        body.addView(
+            sectionLabel("ANDROID PORT STATUS").apply {
+                setPadding(0, dp(22), 0, dp(8))
+            }
+        )
 
         val portCard = card()
+
         portCard.addView(
             textView(
                 "✓ Native AudioRecord hardware boundary\n" +
-                "✓ Foreground microphone service\n" +
-                "✓ One-time microphone permission request\n" +
-                "✓ No storage, location, contacts, camera, or network permission\n" +
-                "✓ 44.1 kHz mono PCM16 capture\n" +
-                "✓ Bounded 15-second circular ring\n" +
-                "✓ Live RMS / peak telemetry\n" +
-                "✓ 60-second baseline clock\n" +
-                "○ Detector / lock logic pending\n" +
-                "○ Recording library pending\n" +
-                "○ Reconstruction / mastering pending\n" +
-                "○ Manual transcription pending\n" +
-                "○ Go Live publisher pending",
+                    "✓ Foreground microphone service\n" +
+                    "✓ One-time microphone permission request\n" +
+                    "✓ Secure outbound WSS broadcast publisher\n" +
+                    "✓ Cellular/Wi-Fi network awareness\n" +
+                    "✓ 44.1 kHz mono PCM16 capture\n" +
+                    "✓ Bounded 15-second circular ring\n" +
+                    "✓ Live RMS / peak telemetry\n" +
+                    "✓ 60-second baseline clock\n" +
+                    "○ Detector / lock logic pending\n" +
+                    "○ Recording library pending\n" +
+                    "○ Reconstruction / mastering pending\n" +
+                    "○ Manual transcription pending",
                 13f,
                 primaryText
             )
@@ -503,7 +885,9 @@ class MainActivity : Activity() {
 
         body.addView(
             textView(
-                "Observe accurately. Preserve faithfully. Analyze transparently. Communicate securely. Act deliberately.",
+                "Observe accurately. Preserve faithfully. " +
+                    "Analyze transparently. Communicate securely. " +
+                    "Act deliberately.",
                 11f,
                 muted
             ).apply {
@@ -537,23 +921,44 @@ class MainActivity : Activity() {
 
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(14), dp(18), dp(30))
+            setPadding(
+                dp(18),
+                dp(14),
+                dp(18),
+                dp(30)
+            )
         }
 
         body.addView(sectionLabel(title))
 
         val c = card()
-        c.addView(textView(bodyText, 16f, primaryText))
+
         c.addView(
-            textView(note, 12f, muted).apply {
+            textView(
+                bodyText,
+                16f,
+                primaryText
+            )
+        )
+
+        c.addView(
+            textView(
+                note,
+                12f,
+                muted
+            ).apply {
                 setPadding(0, dp(16), 0, 0)
             }
         )
+
         body.addView(c)
 
         body.addView(
             textView(
-                "This screen is intentionally present before the subsystem is enabled so the mobile workflow remains stable while functionality is ported behind it.",
+                "This screen is intentionally present before " +
+                    "the subsystem is enabled so the mobile " +
+                    "workflow remains stable while functionality " +
+                    "is ported behind it.",
                 12f,
                 muted
             ).apply {
@@ -565,13 +970,21 @@ class MainActivity : Activity() {
         return scroll
     }
 
-    private fun card() = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(16), dp(16), dp(16), dp(16))
-        setBackgroundColor(panel)
-    }
+    private fun card() =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(
+                dp(16),
+                dp(16),
+                dp(16),
+                dp(16)
+            )
+            setBackgroundColor(panel)
+        }
 
-    private fun sectionLabel(label: String) = TextView(this).apply {
+    private fun sectionLabel(
+        label: String
+    ) = TextView(this).apply {
         text = label
         textSize = 12f
         setTextColor(maroon)
@@ -590,84 +1003,260 @@ class MainActivity : Activity() {
         text = value
         textSize = size
         setTextColor(color)
+
         typeface = when (role) {
-            FontRole.BRAND -> brandTypeface
-            FontRole.UI -> if (bold) Typeface.create(uiTypeface, Typeface.BOLD) else uiTypeface
-            FontRole.DATA -> dataTypeface
+            FontRole.BRAND ->
+                brandTypeface
+
+            FontRole.UI ->
+                if (bold) {
+                    Typeface.create(
+                        uiTypeface,
+                        Typeface.BOLD
+                    )
+                } else {
+                    uiTypeface
+                }
+
+            FontRole.DATA ->
+                dataTypeface
         }
+
         setLineSpacing(0f, 1.12f)
     }
 
     private fun renderSnapshot() {
         if (currentScreen != Screen.MONITOR) return
 
-        val hasPermission = hasMicrophonePermission()
-        val s = audioService?.snapshot()
+        networkText?.text = networkSummary()
 
-        permissionText?.text = if (hasPermission) {
-            "Microphone permission enabled • capture occurs only while monitoring is active."
-        } else {
-            "Microphone permission is off. BCIWhisper will not prompt again automatically; use Start Monitor to open App permissions."
-        }
+        val hasPermission =
+            hasMicrophonePermission()
+        val snapshot =
+            audioService?.snapshot()
 
-        if (s == null) {
-            stateText?.text = when {
-                !hasPermission -> "MICROPHONE PERMISSION REQUIRED"
-                bound -> "Microphone boundary ready"
-                else -> "Boundary stopped"
+        permissionText?.text =
+            if (hasPermission) {
+                "Microphone permission enabled • capture occurs " +
+                    "only while monitoring is active."
+            } else {
+                "Microphone permission is off. BCIWhisper will " +
+                    "not prompt again automatically; use Start " +
+                    "Monitor to open App permissions."
             }
 
-            startButton?.text = if (hasPermission) "START MONITOR" else "OPEN PERMISSIONS"
+        if (snapshot == null) {
+            stateText?.text = when {
+                !hasPermission ->
+                    "MICROPHONE PERMISSION REQUIRED"
+
+                bound ->
+                    "Microphone boundary ready"
+
+                else ->
+                    "Boundary stopped"
+            }
+
+            startButton?.text =
+                if (hasPermission) {
+                    "START MONITOR"
+                } else {
+                    "OPEN PERMISSIONS"
+                }
+
             startButton?.isEnabled = true
             stopButton?.isEnabled = false
+
+            broadcastStatusText?.text = "OFFLINE"
+            goLiveButton?.isEnabled =
+                hasPermission && isNetworkAvailable()
+            stopLiveButton?.isEnabled = false
             return
         }
 
         stateText?.text = when {
-            s.lastError != null -> "ERROR • ${s.lastError}"
-            !hasPermission -> "MICROPHONE PERMISSION REQUIRED"
-            s.running && !s.baselineComplete -> "CALIBRATING • ${s.sampleRate} Hz"
-            s.running -> "MONITORING • ${s.sampleRate} Hz"
-            else -> "Boundary stopped"
+            snapshot.lastError != null ->
+                "ERROR • ${snapshot.lastError}"
+
+            !hasPermission ->
+                "MICROPHONE PERMISSION REQUIRED"
+
+            snapshot.running &&
+                !snapshot.baselineComplete ->
+                "CALIBRATING • ${snapshot.sampleRate} Hz"
+
+            snapshot.running ->
+                "MONITORING • ${snapshot.sampleRate} Hz"
+
+            else ->
+                "Boundary stopped"
         }
 
         levelText?.text = String.format(
             Locale.US,
             "RMS %.1f dBFS   •   PEAK %.1f dBFS",
-            s.rmsDbfs,
-            s.peakDbfs
+            snapshot.rmsDbfs,
+            snapshot.peakDbfs
         )
 
-        val peakForMeter = s.peakDbfs.coerceIn(-60.0, 0.0)
-        levelBar?.progress = ((peakForMeter + 60.0) * 10.0)
-            .toInt()
-            .coerceIn(0, 600)
+        val peakForMeter =
+            snapshot.peakDbfs.coerceIn(-60.0, 0.0)
 
-        baselineText?.text = if (s.baselineComplete) {
-            "Baseline complete • 60.0 s"
-        } else {
-            String.format(
-                Locale.US,
-                "Baseline %.1f / 60.0 s",
-                s.baselineSeconds
+        levelBar?.progress =
+            ((peakForMeter + 60.0) * 10.0)
+                .toInt()
+                .coerceIn(0, 600)
+
+        baselineText?.text =
+            if (snapshot.baselineComplete) {
+                "Baseline complete • 60.0 s"
+            } else {
+                String.format(
+                    Locale.US,
+                    "Baseline %.1f / 60.0 s",
+                    snapshot.baselineSeconds
+                )
+            }
+
+        baselineBar?.progress =
+            (snapshot.baselineSeconds * 10.0)
+                .toInt()
+                .coerceIn(0, 600)
+
+        startButton?.text =
+            if (hasPermission) {
+                "START MONITOR"
+            } else {
+                "OPEN PERMISSIONS"
+            }
+
+        startButton?.isEnabled =
+            !snapshot.running
+        stopButton?.isEnabled =
+            snapshot.running
+
+        val broadcastStatus =
+            when (snapshot.broadcastState) {
+                BroadcastPublisher.State.LIVE ->
+                    String.format(
+                        Locale.US,
+                        "LIVE • %.2f MB sent • %d dropped",
+                        snapshot.broadcastBytesSent /
+                            (1024.0 * 1024.0),
+                        snapshot.broadcastDroppedFrames
+                    )
+
+                BroadcastPublisher.State.CONNECTING ->
+                    "CONNECTING"
+
+                BroadcastPublisher.State.RETRYING ->
+                    "RECONNECTING • " +
+                        (
+                            snapshot.broadcastLastError
+                                ?: "network transition"
+                        )
+
+                BroadcastPublisher.State.ERROR ->
+                    "ERROR • " +
+                        (
+                            snapshot.broadcastLastError
+                                ?: "publisher error"
+                        )
+
+                BroadcastPublisher.State.OFFLINE ->
+                    "OFFLINE"
+            }
+
+        broadcastStatusText?.text =
+            broadcastStatus
+
+        val liveOrConnecting =
+            snapshot.broadcastState !=
+                BroadcastPublisher.State.OFFLINE &&
+                snapshot.broadcastState !=
+                BroadcastPublisher.State.ERROR
+
+        goLiveButton?.isEnabled =
+            hasPermission &&
+                isNetworkAvailable() &&
+                !liveOrConnecting
+
+        stopLiveButton?.isEnabled =
+            liveOrConnecting
+    }
+
+    private fun isNetworkAvailable(): Boolean {
+        val manager =
+            getSystemService(
+                ConnectivityManager::class.java
             )
+
+        val network =
+            manager.activeNetwork
+                ?: return false
+
+        val capabilities =
+            manager.getNetworkCapabilities(network)
+                ?: return false
+
+        return capabilities.hasCapability(
+            NetworkCapabilities.NET_CAPABILITY_INTERNET
+        )
+    }
+
+    private fun networkSummary(): String {
+        val manager =
+            getSystemService(
+                ConnectivityManager::class.java
+            )
+
+        val network =
+            manager.activeNetwork
+                ?: return "NETWORK • OFFLINE"
+
+        val capabilities =
+            manager.getNetworkCapabilities(network)
+                ?: return "NETWORK • OFFLINE"
+
+        return when {
+            capabilities.hasTransport(
+                NetworkCapabilities.TRANSPORT_CELLULAR
+            ) ->
+                "CELLULAR • outbound WSS supported • mobile data will be used"
+
+            capabilities.hasTransport(
+                NetworkCapabilities.TRANSPORT_WIFI
+            ) ->
+                "WI-FI • outbound WSS supported"
+
+            capabilities.hasTransport(
+                NetworkCapabilities.TRANSPORT_ETHERNET
+            ) ->
+                "ETHERNET • outbound WSS supported"
+
+            capabilities.hasTransport(
+                NetworkCapabilities.TRANSPORT_VPN
+            ) ->
+                "VPN • outbound WSS supported"
+
+            else ->
+                "NETWORK • outbound WSS supported"
         }
-
-        baselineBar?.progress = (s.baselineSeconds * 10.0)
-            .toInt()
-            .coerceIn(0, 600)
-
-        startButton?.text = if (hasPermission) "START MONITOR" else "OPEN PERMISSIONS"
-        startButton?.isEnabled = !s.running
-        stopButton?.isEnabled = s.running
     }
 
     private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
+        (
+            value *
+                resources.displayMetrics.density
+        ).toInt()
 
     companion object {
         private const val REQUEST_MICROPHONE = 100
-        private const val PREFS_NAME = "bciwhisper_permissions"
-        private const val KEY_MICROPHONE_PROMPTED = "microphone_prompted_once"
+        private const val PREFS_NAME =
+            "bciwhisper_permissions"
+        private const val KEY_MICROPHONE_PROMPTED =
+            "microphone_prompted_once"
+        private const val KEY_GATEWAY_URL =
+            "broadcast_gateway_url"
     }
 }

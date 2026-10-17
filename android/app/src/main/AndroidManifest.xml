@@ -2,7 +2,11 @@
     <!-- Runtime permission: requested once on first launch. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Required to run the microphone capture boundary as a foreground service. -->
+    <!-- Normal permissions: no runtime prompt. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Foreground microphone service capabilities: no runtime prompt. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 

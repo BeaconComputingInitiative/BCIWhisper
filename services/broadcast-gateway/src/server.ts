@@ -4,7 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-const VERSION = "1.0.1";
+const VERSION = "1.1.0";
 const PROTOCOL = "bci-broadcast-v1";
 
 const host = Bun.env.BCI_HOST || "127.0.0.1";
@@ -51,15 +51,19 @@ function safe(a: string, b: string) {
   const bb = Buffer.from(b);
   return aa.length === bb.length && timingSafeEqual(aa, bb);
 }
+
 function bearer(req: Request) {
   const h = req.headers.get("authorization") || "";
   return h.toLowerCase().startsWith("bearer ") ? h.slice(7).trim() : "";
 }
 
+type PublisherCodec = "mp3" | "pcm_s16le";
+
 type WSData = {
   role: "publisher";
   publisherId: string;
   hello: boolean;
+  inputCodec: PublisherCodec | null;
 };
 
 const started = Date.now();
@@ -67,6 +71,8 @@ let publisher: ServerWebSocket<WSData> | null = null;
 let streamLive = false;
 let bytesReceived = 0;
 let chunksReceived = 0;
+let publisherInputCodec: PublisherCodec | null = null;
+
 let metadata = {
   codec: "mp3",
   mimeType: "audio/mpeg",
@@ -79,15 +85,19 @@ type Listener = {
   id: string;
   controller: ReadableStreamDefaultController<Uint8Array>;
 };
+
 const listeners = new Map<string, Listener>();
 
 const buffer: Uint8Array[] = [];
 let bufferBytes = 0;
 const bufferLimit = 1024 * 1024;
 
+let transcoder: ReturnType<typeof Bun.spawn> | null = null;
+
 function pushBuffer(chunk: Uint8Array) {
   buffer.push(chunk);
   bufferBytes += chunk.byteLength;
+
   while (bufferBytes > bufferLimit && buffer.length > 1) {
     const old = buffer.shift();
     if (old) bufferBytes -= old.byteLength;
@@ -102,6 +112,104 @@ function fanout(chunk: Uint8Array) {
       listeners.delete(id);
     }
   }
+}
+
+function stopTranscoder() {
+  const proc = transcoder;
+  transcoder = null;
+
+  if (!proc) return;
+
+  try {
+    proc.stdin.end();
+  } catch {}
+
+  try {
+    proc.kill();
+  } catch {}
+}
+
+function startPcmTranscoder(
+  sampleRate: number,
+  channels: number,
+  bitrateKbps: number
+) {
+  stopTranscoder();
+
+  const ffmpeg = Bun.which("ffmpeg");
+  if (!ffmpeg) {
+    throw new Error("ffmpeg is required for pcm_s16le mobile publishing");
+  }
+
+  const proc = Bun.spawn(
+    [
+      ffmpeg,
+      "-hide_banner",
+      "-loglevel", "error",
+      "-f", "s16le",
+      "-ar", String(sampleRate),
+      "-ac", String(channels),
+      "-i", "pipe:0",
+      "-vn",
+      "-c:a", "libmp3lame",
+      "-b:a", `${bitrateKbps}k`,
+      "-f", "mp3",
+      "pipe:1",
+    ],
+    {
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
+    }
+  );
+
+  transcoder = proc;
+
+  void (async () => {
+    const reader = proc.stdout.getReader();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value || !value.byteLength) continue;
+
+        streamLive = true;
+        pushBuffer(value);
+        fanout(value);
+      }
+    } catch (err) {
+      event("transcoder_stdout_error", {
+        error: String(err),
+      });
+    }
+  })();
+
+  void (async () => {
+    const reader = proc.stderr.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value || !value.byteLength) continue;
+
+        const line = decoder.decode(value).trim();
+        if (line) {
+          event("transcoder_stderr", line);
+        }
+      }
+    } catch {}
+  })();
+
+  event("transcoder_started", {
+    inputCodec: "pcm_s16le",
+    outputCodec: "mp3",
+    sampleRate,
+    channels,
+    bitrateKbps,
+  });
 }
 
 const playerHtml = `<!doctype html>
@@ -147,6 +255,7 @@ const server = Bun.serve<WSData>({
           id: streamId,
           live: streamLive,
           listeners: listeners.size,
+          publisherInputCodec,
           ...metadata,
         },
         playerUrl: `${publicBase.replace(/\/$/, "")}/player`,
@@ -155,13 +264,18 @@ const server = Bun.serve<WSData>({
 
     if (u.pathname === "/player") {
       return new Response(playerHtml, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+        },
       });
     }
 
     if (u.pathname === `/live/${streamId}`) {
       if (!streamLive || !publisher) {
-        return Response.json({ error: "stream_offline" }, { status: 503 });
+        return Response.json(
+          { error: "stream_offline" },
+          { status: 503 }
+        );
       }
 
       server.timeout(req, 0);
@@ -169,13 +283,27 @@ const server = Bun.serve<WSData>({
 
       const rs = new ReadableStream<Uint8Array>({
         start(controller) {
-          listeners.set(id, { id, controller });
-          for (const chunk of buffer) controller.enqueue(chunk);
-          event("listener_connected", { id, count: listeners.size });
+          listeners.set(id, {
+            id,
+            controller,
+          });
+
+          for (const chunk of buffer) {
+            controller.enqueue(chunk);
+          }
+
+          event("listener_connected", {
+            id,
+            count: listeners.size,
+          });
         },
+
         cancel() {
           listeners.delete(id);
-          event("listener_disconnected", { id, count: listeners.size });
+          event("listener_disconnected", {
+            id,
+            count: listeners.size,
+          });
         },
       });
 
@@ -189,35 +317,55 @@ const server = Bun.serve<WSData>({
 
     if (u.pathname === `/api/v1/publish/${streamId}`) {
       if (!safe(bearer(req), publisherToken)) {
-        return new Response("unauthorized", { status: 401 });
+        return new Response(
+          "unauthorized",
+          { status: 401 }
+        );
       }
+
       if (publisher) {
-        return new Response("publisher already connected", { status: 409 });
+        return new Response(
+          "publisher already connected",
+          { status: 409 }
+        );
       }
 
       const upgraded = server.upgrade(req, {
         data: {
           role: "publisher",
           publisherId:
-            req.headers.get("x-bci-publisher-id") || "bciwhisper-desktop",
+            req.headers.get("x-bci-publisher-id") ||
+            "bciwhisper-desktop",
           hello: false,
+          inputCodec: null,
         },
       });
 
-      return upgraded ? undefined : new Response("upgrade failed", { status: 400 });
+      return upgraded
+        ? undefined
+        : new Response(
+            "upgrade failed",
+            { status: 400 }
+          );
     }
 
     if (u.pathname === "/api/v1/admin/status") {
       if (!safe(bearer(req), adminToken)) {
-        return new Response("unauthorized", { status: 401 });
+        return new Response(
+          "unauthorized",
+          { status: 401 }
+        );
       }
+
       return Response.json({
         server: {
           online: true,
-          uptimeSeconds: Math.floor((Date.now() - started) / 1000),
+          uptimeSeconds:
+            Math.floor((Date.now() - started) / 1000),
         },
         publisher: {
           connected: Boolean(publisher),
+          inputCodec: publisherInputCodec,
         },
         stream: {
           live: streamLive,
@@ -229,7 +377,10 @@ const server = Bun.serve<WSData>({
       });
     }
 
-    return new Response("not found", { status: 404 });
+    return new Response(
+      "not found",
+      { status: 404 }
+    );
   },
 
   websocket: {
@@ -238,72 +389,201 @@ const server = Bun.serve<WSData>({
 
     open(ws) {
       publisher = ws;
+      publisherInputCodec = null;
       streamLive = false;
       buffer.length = 0;
       bufferBytes = 0;
-      event("publisher_connected", { publisherId: ws.data.publisherId });
+
+      event("publisher_connected", {
+        publisherId: ws.data.publisherId,
+      });
     },
 
     message(ws, message) {
       if (typeof message === "string") {
-        let j: any;
-        try { j = JSON.parse(message); } catch {
-          ws.close(1003, "invalid_json"); return;
+        let body: any;
+
+        try {
+          body = JSON.parse(message);
+        } catch {
+          ws.close(1003, "invalid_json");
+          return;
         }
 
-        if (j.type === "heartbeat") return;
+        if (body.type === "heartbeat") {
+          return;
+        }
 
-        if (j.type === "hello") {
-          if (j.protocol !== PROTOCOL || j.codec !== "mp3") {
-            ws.close(1008, "protocol_or_codec_mismatch");
+        if (body.type === "hello") {
+          const codec = String(
+            body.codec || ""
+          ).toLowerCase() as PublisherCodec;
+
+          if (
+            body.protocol !== PROTOCOL ||
+            (codec !== "mp3" &&
+              codec !== "pcm_s16le")
+          ) {
+            ws.close(
+              1008,
+              "protocol_or_codec_mismatch"
+            );
             return;
           }
+
+          const sampleRate =
+            Number(body.sampleRate) || 44100;
+          const channels =
+            Number(body.channels) || 1;
+          const bitrateKbps =
+            Number(body.bitrateKbps) || 128;
+
+          if (
+            sampleRate < 8000 ||
+            sampleRate > 192000 ||
+            channels < 1 ||
+            channels > 2 ||
+            bitrateKbps < 32 ||
+            bitrateKbps > 320
+          ) {
+            ws.close(
+              1008,
+              "invalid_audio_parameters"
+            );
+            return;
+          }
+
+          ws.data.inputCodec = codec;
+          publisherInputCodec = codec;
+
           metadata = {
             codec: "mp3",
             mimeType: "audio/mpeg",
-            sampleRate: Number(j.sampleRate) || 44100,
-            channels: Number(j.channels) || 1,
-            bitrateKbps: Number(j.bitrateKbps) || 128,
+            sampleRate,
+            channels,
+            bitrateKbps,
           };
+
+          if (codec === "pcm_s16le") {
+            try {
+              startPcmTranscoder(
+                sampleRate,
+                channels,
+                bitrateKbps
+              );
+            } catch (err) {
+              event(
+                "transcoder_start_failed",
+                { error: String(err) }
+              );
+              ws.close(
+                1011,
+                "transcoder_unavailable"
+              );
+              return;
+            }
+          } else {
+            stopTranscoder();
+          }
+
           ws.data.hello = true;
-          ws.send(JSON.stringify({
-            type: "hello_ack",
-            protocol: PROTOCOL,
-            streamId,
-          }));
-          event("publisher_hello", metadata);
+
+          ws.send(
+            JSON.stringify({
+              type: "hello_ack",
+              protocol: PROTOCOL,
+              streamId,
+              inputCodec: codec,
+              outputCodec: "mp3",
+            })
+          );
+
+          event("publisher_hello", {
+            inputCodec: codec,
+            ...metadata,
+          });
+
           return;
         }
+
         return;
       }
 
       if (!ws.data.hello) {
-        ws.close(1008, "hello_required");
+        ws.close(
+          1008,
+          "hello_required"
+        );
         return;
       }
 
       const chunk =
         message instanceof ArrayBuffer
-          ? new Uint8Array(message.slice(0))
+          ? new Uint8Array(
+              message.slice(0)
+            )
           : Uint8Array.from(message);
 
-      if (!chunk.byteLength) return;
+      if (!chunk.byteLength) {
+        return;
+      }
 
-      streamLive = true;
       bytesReceived += chunk.byteLength;
       chunksReceived += 1;
+
+      if (ws.data.inputCodec === "pcm_s16le") {
+        const proc = transcoder;
+
+        if (!proc) {
+          ws.close(
+            1011,
+            "transcoder_missing"
+          );
+          return;
+        }
+
+        try {
+          proc.stdin.write(chunk);
+        } catch (err) {
+          event(
+            "transcoder_stdin_error",
+            { error: String(err) }
+          );
+          ws.close(
+            1011,
+            "transcoder_write_failed"
+          );
+        }
+
+        return;
+      }
+
+      streamLive = true;
       pushBuffer(chunk);
       fanout(chunk);
     },
 
     close(ws, code, reason) {
-      if (publisher === ws) publisher = null;
-      streamLive = false;
-      for (const [, l] of listeners) {
-        try { l.controller.close(); } catch {}
+      if (publisher === ws) {
+        publisher = null;
       }
+
+      publisherInputCodec = null;
+      streamLive = false;
+      stopTranscoder();
+
+      for (const [, listener] of listeners) {
+        try {
+          listener.controller.close();
+        } catch {}
+      }
+
       listeners.clear();
-      event("publisher_disconnected", { code, reason: String(reason || "") });
+
+      event("publisher_disconnected", {
+        code,
+        reason: String(reason || ""),
+      });
     },
   },
 });
@@ -316,4 +596,9 @@ console.log("===================================================================
 console.log(`[BCI] Listening: ${server.url}`);
 console.log(`[BCI] Stream ID: ${streamId}`);
 console.log(`[BCI] Player: ${publicBase.replace(/\/$/, "")}/player`);
-event("gateway_started", { host, port, streamId });
+
+event("gateway_started", {
+  host,
+  port,
+  streamId,
+});

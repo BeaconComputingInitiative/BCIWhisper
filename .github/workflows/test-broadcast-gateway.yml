@@ -1,0 +1,147 @@
+name: Test Broadcast Gateway
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "services/broadcast-gateway/**"
+      - "bciwhisper/broadcast/**"
+      - ".github/workflows/test-broadcast-gateway.yml"
+
+jobs:
+  mobile-publisher:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Verify FFmpeg
+        run: |
+          set -euo pipefail
+          command -v ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Compile gateway
+        run: |
+          set -euo pipefail
+          bun build             services/broadcast-gateway/src/server.ts             --target=bun             --outfile=/tmp/bci-gateway.js
+
+      - name: Start gateway
+        run: |
+          set -euo pipefail
+          BCI_HOST=127.0.0.1           BCI_PORT=8766           BCI_STREAM_ID=bciwhisper-main           BCI_PUBLISHER_TOKEN=test-publisher-token           BCI_ADMIN_TOKEN=test-admin-token           BCI_DB_PATH=/tmp/bci-gateway.db           BCI_PUBLIC_BASE_URL=http://127.0.0.1:8766           bun run services/broadcast-gateway/src/server.ts             >/tmp/bci-gateway.log 2>&1 &
+          echo $! >/tmp/bci-gateway.pid
+
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8766/health >/dev/null; then
+              exit 0
+            fi
+            sleep 0.2
+          done
+
+          cat /tmp/bci-gateway.log
+          exit 1
+
+      - name: Install WebSocket test client
+        run: |
+          python3 -m pip install --user "websockets==15.0.1"
+
+      - name: Test Android PCM publisher protocol
+        run: |
+          python3 - <<'PY'
+          import asyncio
+          import json
+          import math
+          import struct
+          import urllib.request
+
+          import websockets
+
+          URL = "ws://127.0.0.1:8766/api/v1/publish/bciwhisper-main"
+
+          async def main():
+              async with websockets.connect(
+                  URL,
+                  additional_headers={
+                      "Authorization": "Bearer test-publisher-token",
+                      "X-BCI-Publisher-ID": "ci-android-mobile",
+                  },
+                  max_size=None,
+              ) as ws:
+                  await ws.send(json.dumps({
+                      "type": "hello",
+                      "protocol": "bci-broadcast-v1",
+                      "codec": "pcm_s16le",
+                      "sampleRate": 44100,
+                      "channels": 1,
+                      "bitrateKbps": 128,
+                  }))
+
+                  ack = json.loads(await asyncio.wait_for(ws.recv(), 3))
+                  assert ack["type"] == "hello_ack", ack
+                  assert ack["inputCodec"] == "pcm_s16le", ack
+                  assert ack["outputCodec"] == "mp3", ack
+
+                  sample_rate = 44100
+                  phase = 0
+
+                  for _ in range(30):
+                      chunk = bytearray()
+                      for _ in range(2048):
+                          sample = int(
+                              0.15 * 32767 *
+                              math.sin(2 * math.pi * 440 * phase / sample_rate)
+                          )
+                          chunk.extend(struct.pack("<h", sample))
+                          phase += 1
+
+                      await ws.send(bytes(chunk))
+                      await asyncio.sleep(2048 / sample_rate)
+
+                  await asyncio.sleep(0.5)
+
+                  def status():
+                      with urllib.request.urlopen(
+                          "http://127.0.0.1:8766/api/v1/status",
+                          timeout=3,
+                      ) as response:
+                          return json.load(response)
+
+                  state = await asyncio.to_thread(status)
+                  assert state["stream"]["live"] is True, state
+                  assert state["stream"]["publisherInputCodec"] == "pcm_s16le", state
+                  assert state["stream"]["codec"] == "mp3", state
+
+                  def read_live():
+                      with urllib.request.urlopen(
+                          "http://127.0.0.1:8766/live/bciwhisper-main",
+                          timeout=3,
+                      ) as response:
+                          assert response.headers.get_content_type() == "audio/mpeg"
+                          data = response.read(64)
+                          assert len(data) > 0
+                          return len(data)
+
+                  count = await asyncio.to_thread(read_live)
+                  print(f"PASS mobile PCM -> gateway MP3 stream ({count} bytes sampled)")
+
+          asyncio.run(main())
+          PY
+
+      - name: Show gateway log
+        if: always()
+        run: |
+          cat /tmp/bci-gateway.log || true
+
+      - name: Stop gateway
+        if: always()
+        run: |
+          if [ -f /tmp/bci-gateway.pid ]; then
+            kill "$(cat /tmp/bci-gateway.pid)" 2>/dev/null || true
+          fi

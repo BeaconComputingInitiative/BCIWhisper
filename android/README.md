@@ -126,3 +126,25 @@ The mobile shell follows the BCI identity:
 - Black base, cyan signal accents, and maroon structural accents.
 - Beacon Computing Initiative identification and developer seal are visible in-app.
 - Launcher and splash assets use the BCI listening / waveform mark.
+
+
+## Broadcast transport
+
+Android Go Live uses an outbound authenticated WebSocket publisher.
+
+```text
+Android microphone
+    -> PCM16 capture
+    -> outbound authenticated WSS publisher
+    -> public BCI Broadcast Gateway
+    -> gateway FFmpeg transcode
+    -> MP3 StreamPlayer
+```
+
+This architecture is specifically compatible with cellular networks because the phone does not accept inbound connections. Carrier-grade NAT does not require any port forwarding.
+
+The app requires a public `wss://` gateway URL and a publisher token. The token is not persisted by the Android UI. The gateway URL may be remembered locally for convenience.
+
+The Android app publishes 44.1 kHz mono signed 16-bit PCM to the gateway. That is approximately 705.6 kbit/s of audio payload before WebSocket overhead. The gateway transcodes that stream to the configured MP3 bitrate for listeners.
+
+The gateway now accepts both desktop MP3 publishers and Android `pcm_s16le` publishers under `bci-broadcast-v1`.

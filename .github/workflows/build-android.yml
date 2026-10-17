@@ -59,9 +59,38 @@ jobs:
       - name: Verify APK
         run: |
           set -euo pipefail
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
-          unzip -t android/app/build/outputs/apk/debug/app-debug.apk >/dev/null
-          sha256sum android/app/build/outputs/apk/debug/app-debug.apk
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$APK"
+          unzip -t "$APK" >/dev/null
+          sha256sum "$APK"
+
+          AAPT="$SDK_ROOT/build-tools/36.0.0/aapt"
+          test -x "$AAPT"
+
+          echo "=== PACKAGE / BRAND AUDIT ==="
+          "$AAPT" dump badging "$APK" | tee /tmp/bci-badging.txt
+          grep -q "package: name='org.beaconcomputinginitiative.bciwhisper'" /tmp/bci-badging.txt
+          grep -q "application-label:'BCIWhisper'" /tmp/bci-badging.txt
+
+          echo "=== PERMISSION AUDIT ==="
+          "$AAPT" dump permissions "$APK" | tee /tmp/bci-permissions.txt
+
+          grep -q "android.permission.RECORD_AUDIO" /tmp/bci-permissions.txt
+          grep -q "android.permission.INTERNET" /tmp/bci-permissions.txt
+          grep -q "android.permission.ACCESS_NETWORK_STATE" /tmp/bci-permissions.txt
+          grep -q "android.permission.FOREGROUND_SERVICE" /tmp/bci-permissions.txt
+          grep -q "android.permission.FOREGROUND_SERVICE_MICROPHONE" /tmp/bci-permissions.txt
+
+          ! grep -q "ACCESS_FINE_LOCATION" /tmp/bci-permissions.txt
+          ! grep -q "ACCESS_COARSE_LOCATION" /tmp/bci-permissions.txt
+          ! grep -q "READ_CONTACTS" /tmp/bci-permissions.txt
+          ! grep -q "CAMERA" /tmp/bci-permissions.txt
+          ! grep -q "READ_SMS" /tmp/bci-permissions.txt
+          ! grep -q "READ_PHONE_STATE" /tmp/bci-permissions.txt
+          ! grep -q "READ_MEDIA_" /tmp/bci-permissions.txt
+          ! grep -q "READ_EXTERNAL_STORAGE" /tmp/bci-permissions.txt
+          ! grep -q "WRITE_EXTERNAL_STORAGE" /tmp/bci-permissions.txt
+          ! grep -q "POST_NOTIFICATIONS" /tmp/bci-permissions.txt
 
       - name: Stage artifact
         run: |

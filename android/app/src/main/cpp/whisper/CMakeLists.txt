@@ -18,14 +18,13 @@ add_library(
     bciwhisper_whisper
     SHARED
     "${WHISPER_ROOT}/src/whisper.cpp"
-    "${WHISPER_ROOT}/src/aneforge/whisper-aneforge.cpp"
     "${CMAKE_SOURCE_DIR}/jni.c"
 )
 
 target_compile_definitions(
     bciwhisper_whisper
     PUBLIC GGML_USE_CPU
-    PRIVATE WHISPER_VERSION="1.9.5-dev"
+    PRIVATE WHISPER_VERSION="1.9.4"
 )
 target_compile_options(bciwhisper_whisper PRIVATE -O3 -fvisibility=hidden -fvisibility-inlines-hidden -ffunction-sections -fdata-sections)
 

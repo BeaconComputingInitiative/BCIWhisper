@@ -1,7 +1,7 @@
 # BEACON COMPUTING INITIATIVE
 # BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
 # Developer Seal: CJB-DEV-2026
-# Canonical Payload SHA-256: fde7ac498463e2ab19e37942c48fa7fe22fe5eab2b5a3e875dc38a20f0d0f8c5
+# Canonical Payload SHA-256: 7c8a09269ac73b377c7b78878236b1e429a1513c92d66eb0956918730da7d2de
 # Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
 
 # Actual file SHA-256 values for Script 58.1 source files.
@@ -12,7 +12,7 @@ b0ddfa673437a58f8d4f9d48516a52ea7316d69dcabefa066fd7d59500d2145b  bciwhisper/tra
 e2518de9dacb6de57e77f8efd06b48c2d5e5912b34e1b4aefe43897d66c2d45f  bciwhisper/ui_qml/__init__.py
 2cf2bb91ebb5aa76ba664bbcbd7ad872cd2968a15e4116dc13bfb8acd6da7ca6  bciwhisper/ui_qml/bridge.py
 bb67e3b1fa70d02158f5e9246d15991610b784288960865767c04b2a5403d83e  bciwhisper/ui_qml/main.py
-6a348835e13ccb4e97f8e6c21a52bd39e63d23d1f60c81d270c974dfd9d91e3b  bciwhisper/ui_qml/qml/Main.qml
+bff7b5bdd76aa5b2ce415ca24d6b9e02e86281ca0b6f529829ba70733f6cb470  bciwhisper/ui_qml/qml/Main.qml
 3a29b539a06e647791d655417634dee6e087f496dc6cf6ff50b29cacba62b7e5  bciwhisper/ui_qml/qml/components/PanelCard.qml
 2da289775a80062829293b5a7a967dfe3211a8c9a6b8953c2114ed8bf1794e03  bciwhisper/version.py
 2a15ce78e88e484e28028d46c8073b38f6757d3f83183ff40580aac910fe3676  docs/BCIWhisper_58_1_QML_Modular_Foundation.md

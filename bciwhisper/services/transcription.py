@@ -1,7 +1,7 @@
 # BEACON COMPUTING INITIATIVE
 # BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
 # Developer Seal: CJB-DEV-2026
-# Canonical Payload SHA-256: f332fb20de1ee30e95f050864edbdb2faca257d5ad03f8d6465ec9027325c8b3
+# Canonical Payload SHA-256: 39fe39d27086a832d38a7cab328c59b96f4e4b504117e5e117b2b98025a59ad0
 # Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
 
 from __future__ import annotations
@@ -87,8 +87,18 @@ class _FasterWhisperBackend:
         self._model = None
         self._lock = threading.Lock()
 
+    def _configured_local_model_missing(self) -> bool:
+        ref = self.model_ref.strip()
+        if not ref:
+            return True
+        if ref.startswith(("/", "./", "../", "~")):
+            return not Path(ref).expanduser().exists()
+        return False
+
     def available(self) -> bool:
-        return importlib.util.find_spec("faster_whisper") is not None
+        if importlib.util.find_spec("faster_whisper") is None:
+            return False
+        return not self._configured_local_model_missing()
 
     def transcribe(self, audio_path: Path) -> TranscriptResult:
         from faster_whisper import WhisperModel  # type: ignore
@@ -225,7 +235,14 @@ class TranscriptionService:
                     getattr(backend, "model_ref", getattr(backend, "model", "")),
                 )
             )
-            rows.append(BackendDescriptor(str(getattr(backend, "name", type(backend).__name__)), model, ok, detail))
+            rows.append(
+                BackendDescriptor(
+                    str(getattr(backend, "name", type(backend).__name__)),
+                    model,
+                    ok,
+                    detail,
+                )
+            )
         return tuple(rows)
 
     def discover(self) -> None:

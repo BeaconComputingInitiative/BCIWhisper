@@ -1,0 +1,20 @@
+# BEACON COMPUTING INITIATIVE
+# BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
+# Developer Seal: CJB-DEV-2026
+# Canonical Payload SHA-256: 3b6413da0ffdbaeff97f6ecee08506156ed0a1656ff45f808ca57578ba4a254b
+# Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
+
+# Script 58.1 QML development environment.
+# Keep separate from the frozen 57.10 PyQt6 packaging environment during migration.
+
+PySide6>=6.8,<7
+numpy>=2.0,<3
+scipy>=1.14,<2
+sounddevice>=0.5,<1
+soundfile>=0.13,<1
+faster-whisper>=1.2,<2
+ctranslate2>=4.5,<5
+psutil>=6,<8
+requests>=2.32,<3
+websockets>=14,<18
+PyYAML>=6,<7

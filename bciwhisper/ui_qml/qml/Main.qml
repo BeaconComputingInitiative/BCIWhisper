@@ -1,13 +1,14 @@
 // BEACON COMPUTING INITIATIVE
 // BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
 // Developer Seal: CJB-DEV-2026
-// Canonical Payload SHA-256: fe5c5c0ef724a4281467cad847237e4238b5db68c8cd025b88b9a770964db52d
+// Canonical Payload SHA-256: aaffad69eee40fa7c7e04e4db0924e9a48b0b98bb2438d45922a36aa432e40ef
 // Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
 
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
+import "components"
 
 ApplicationWindow {
     id: window

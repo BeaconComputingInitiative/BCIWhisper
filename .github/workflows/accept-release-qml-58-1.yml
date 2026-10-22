@@ -1,0 +1,160 @@
+# BEACON COMPUTING INITIATIVE
+# BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
+# Developer Seal: CJB-DEV-2026
+# Canonical Payload SHA-256: b874da5614b134b744f140f575de0b4fe8c38bf156960ddee7f9a3ee74b857e4
+# Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
+
+name: BCIWhisper 58.1 QML Acceptance
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: write
+
+jobs:
+  test-build:
+    name: Linux QML acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-qml-desktop.txt
+
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 \
+            libgl1 \
+            libxcb-cursor0 \
+            libxkbcommon-x11-0
+
+      - name: Install Python build/runtime dependencies
+        run: |
+          python -m pip install --upgrade pip wheel
+          python -m pip install -r requirements-qml-desktop.txt
+          python -m pip install "pyinstaller>=6.16,<7"
+
+      - name: Compile all Python sources
+        run: |
+          python -m compileall -q bciwhisper
+          python -m py_compile bciwhisper/ui_qml/main.py
+          python -m py_compile bciwhisper/ui_qml/bridge.py
+          python -m py_compile bciwhisper/services/transcription.py
+
+      - name: Run architecture audit
+        run: python tools/module_sequence_audit.py
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: QML source smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+          BCI_QML_SMOKE_TEST: "1"
+        run: |
+          python -m bciwhisper.ui_qml.main 2>&1 | tee qml-source-smoke.log
+          grep -F "[BCIWhisper][QML] ROOT_READY" qml-source-smoke.log
+
+      - name: Build Linux QML preview
+        run: pyinstaller --clean -y BCIWhisper-QML.spec
+
+      - name: QML packaged smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+          BCI_QML_SMOKE_TEST: "1"
+        run: |
+          ./dist/BCIWhisper-58.1-QML/BCIWhisper-58.1-QML 2>&1 | tee qml-package-smoke.log
+          grep -F "[BCIWhisper][QML] ROOT_READY" qml-package-smoke.log
+
+      - name: Assemble release artifact and evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-evidence
+          cp qml-source-smoke.log release-evidence/
+          cp qml-package-smoke.log release-evidence/
+          cat > release-evidence/ACCEPTANCE_58_1.txt <<EOF
+          BEACON COMPUTING INITIATIVE
+          BCIWhisper Script 58.1
+          Engineering Build: 2026.10.22-r6.35.1
+          Developer Seal: CJB-DEV-2026
+          Git commit: ${GITHUB_SHA}
+
+          PASS: Python compile
+          PASS: module sequence audit
+          PASS: transcription service unit tests
+          PASS: QML source root-object smoke
+          PASS: PyInstaller Linux build
+          PASS: packaged QML root-object smoke
+
+          Scope: QML modular technology preview.
+          Stable 57.10 audio-runtime behavior remains the compatibility baseline.
+          Physical microphone/recording parity is not claimed by this preview.
+          EOF
+
+          tar -C dist -czf BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz BCIWhisper-58.1-QML
+          sha256sum BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz \
+            > BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz.sha256
+          sha256sum release-evidence/* > release-evidence/SHA256_EVIDENCE.txt
+
+      - name: Upload accepted Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz
+            BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz.sha256
+            release-evidence/
+
+  release:
+    name: Publish 58.1 technology preview
+    needs: test-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout accepted master
+        uses: actions/checkout@v4
+
+      - name: Download accepted artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64
+          path: release-output
+
+      - name: Publish release if absent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v6.0-script58.1
+        run: |
+          set -euo pipefail
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "[BCIWhisper] Release $TAG already exists; leaving it immutable."
+            exit 0
+          fi
+
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "BCIWhisper v6.0 — Script 58.1 QML Technology Preview" \
+            --prerelease \
+            --notes-file docs/BCIWhisper_58_1_QML_Modular_Foundation.md \
+            release-output/BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz \
+            release-output/BCIWhisper-v6.0-Script58.1-QML-Linux-x86_64.tar.gz.sha256 \
+            release-output/release-evidence/ACCEPTANCE_58_1.txt \
+            release-output/release-evidence/SHA256_EVIDENCE.txt

@@ -1,10 +1,10 @@
+#!/usr/bin/env bash
 # BEACON COMPUTING INITIATIVE
 # BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
 # Developer Seal: CJB-DEV-2026
-# Canonical Payload SHA-256: edad3af45421e9926f073262b20d8a2c1086757daccbdf313bc7d9fc28d23996
-# Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
+# Canonical Executable Payload SHA-256: edad3af45421e9926f073262b20d8a2c1086757daccbdf313bc7d9fc28d23996
+# Integrity rule: hash covers the shebang plus executable payload below this header, if and only if that payload is unchanged.
 
-#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

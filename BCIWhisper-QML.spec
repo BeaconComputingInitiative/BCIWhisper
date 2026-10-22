@@ -1,12 +1,10 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
+# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
 # Developer Seal: CJB-DEV-2026
-# Canonical Payload SHA-256: a35cd5707e909392d0a9b1e236aafebcce5f58ef19850615601243e9f0df21c1
-# Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
 
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_all
+from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs
 
 
 datas = [
@@ -14,7 +12,9 @@ datas = [
     ("assets/bciwhisper.png", "assets"),
 ]
 binaries = []
-hiddenimports = []
+hiddenimports = [
+    "bciwhisper.native._bci_native",
+]
 
 for package in (
     "faster_whisper",
@@ -27,6 +27,8 @@ for package in (
     datas += package_datas
     binaries += package_binaries
     hiddenimports += package_hidden
+
+binaries += collect_dynamic_libs("bciwhisper.native")
 
 a = Analysis(
     ["bciwhisper/ui_qml/main.py"],
@@ -48,7 +50,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="BCIWhisper-58.1-QML",
+    name="BCIWhisper-58.2-QML",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -63,5 +65,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="BCIWhisper-58.1-QML",
+    name="BCIWhisper-58.2-QML",
 )

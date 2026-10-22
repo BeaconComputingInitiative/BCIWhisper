@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
+// BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
 // Developer Seal: CJB-DEV-2026
 // Canonical Payload SHA-256: aaffad69eee40fa7c7e04e4db0924e9a48b0b98bb2438d45922a36aa432e40ef
 // Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
@@ -120,16 +120,18 @@ ApplicationWindow {
                     width: parent.width
                     spacing: 12
 
+                    ArchitectureCard {}
+
                     PanelCard {
-                        title: "58.1 MODULAR RUNTIME BOUNDARY"
-                        body: "QML owns presentation only. Audio hardware, capture, DSP, detection, recording, reconstruction, mastering, telemetry, broadcast, and transcription remain independently owned services."
+                        title: "58.2 MODULAR RUNTIME BOUNDARY"
+                        body: "QML owns presentation, Python owns orchestration and services, and C++20 owns deterministic low-latency primitives. Audio hardware remains single-owner behind the isolated PortAudio boundary."
                         metricLabel: "UI"
-                        metric: "Qt Quick / QML"
+                        metric: "QML + Python + C++20"
                     }
 
                     PanelCard {
                         title: "57.10 COMPATIBILITY BASELINE"
-                        body: "The frozen 57.10 engine remains the behavioral reference while functionality is moved behind service contracts. Script 58.1 does not replace or rewrite the verified capture pipeline."
+                        body: "The frozen 57.10 engine remains the behavioral reference while functionality is moved behind service contracts. Script 58.2 does not replace or rewrite the verified capture pipeline."
                         metricLabel: "Migration"
                         metric: "additive"
                     }
@@ -152,7 +154,7 @@ ApplicationWindow {
 
                     PanelCard {
                         title: "RECORDING SERVICE"
-                        body: "Script 58.1 establishes the presentation boundary without moving the 57.10 recording owner. The next extraction can expose the existing recording library through a model rather than direct widget ownership."
+                        body: "Script 58.2 establishes the presentation boundary without moving the 57.10 recording owner. The next extraction can expose the existing recording library through a model rather than direct widget ownership."
                         metricLabel: "57.10 rule"
                         metric: "15 s confirmed lock"
                     }

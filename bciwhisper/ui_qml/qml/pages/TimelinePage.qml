@@ -31,7 +31,7 @@ Item {
                         required property var modelData
                         required property int index
                         width: parent.width
-                        height: 92
+                        height: 132
                         radius: 8
                         color: "#111b23"
                         border.color: "#31515f"
@@ -45,6 +45,20 @@ Item {
                                 TextField { id: endTime; text: modelData.out.toFixed(2); validator: DoubleValidator { bottom: 0 }; Layout.preferredWidth: 90 }
                                 Button { text: "SET TRIM"; onClicked: bci.trimEpisodeTrack(index, Number(startTime.text), Number(endTime.text)) }
                                 Label { text: modelData.rate + " Hz / " + modelData.frames + " frames"; color: "#8b9ca5" }
+                            }
+                            RowLayout {
+                                Label { text: "TRACK GAIN"; color: "#a3bac2" }
+                                Slider {
+                                    Layout.preferredWidth: 190
+                                    from: 0; to: 2
+                                    value: modelData.gain
+                                    onMoved: bci.setEpisodeTrackMix(index, value, modelData.muted)
+                                }
+                                CheckBox {
+                                    text: "MUTE"
+                                    checked: modelData.muted
+                                    onClicked: bci.setEpisodeTrackMix(index, modelData.gain, checked)
+                                }
                             }
                         }
                     }

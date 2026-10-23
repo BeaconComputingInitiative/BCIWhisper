@@ -19,6 +19,7 @@ class BCIWhisperBridge(QtCore.QObject):
     telemetryChanged = QtCore.Signal()
     transcriptChanged = QtCore.Signal()
     nativeChanged = QtCore.Signal()
+    transcriptionResultReady = QtCore.Signal(object)
 
     def __init__(self, parent: QtCore.QObject | None = None) -> None:
         super().__init__(parent)
@@ -36,6 +37,7 @@ class BCIWhisperBridge(QtCore.QObject):
 
         self._native_self_test = "NOT_RUN"
         self._native_metrics = ""
+        self.transcriptionResultReady.connect(self._apply_transcription_result)
         self.runNativeSelfTest()
 
         self._timer = QtCore.QTimer(self)
@@ -285,7 +287,7 @@ class BCIWhisperBridge(QtCore.QObject):
         self.transcriptChanged.emit()
 
         def completed(result: dict) -> None:
-            QtCore.QTimer.singleShot(0, lambda: self._apply_transcription_result(result))
+            self.transcriptionResultReady.emit(dict(result))
 
         self._runtime.transcribe(path, completed)
 

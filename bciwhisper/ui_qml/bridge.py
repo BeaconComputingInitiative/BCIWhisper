@@ -162,6 +162,23 @@ class BCIWhisperBridge(QtCore.QObject):
     def baselineComplete(self) -> bool:
         return bool(self._value("baseline_complete", False))
 
+    @QtCore.Property(float, notify=runtimeChanged)
+    def programGain(self) -> float:
+        return float(self._value("program_bus", {}).get("gain", 1.0))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def programMuted(self) -> bool:
+        return bool(self._value("program_bus", {}).get("muted", False))
+
+    @QtCore.Slot(float, bool)
+    def configureProgramBus(self, gain: float, muted: bool) -> None:
+        try:
+            self._runtime.configure_program_bus(gain, muted)
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
     @QtCore.Property(bool, notify=runtimeChanged)
     def podcastRecording(self) -> bool:
         return bool(self._value("manual_recording", False))

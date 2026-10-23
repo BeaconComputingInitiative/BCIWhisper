@@ -60,6 +60,11 @@ Item {
                 font.family: "JetBrains Mono"
                 color: bci.podcastRecording ? "#ff767f" : "#78e5c5"
             }
+            Label {
+                text: "STREAM QUEUE " + bci.streamQueueDepth + "  /  DROPS " + bci.streamDroppedChunks
+                font.family: "JetBrains Mono"
+                color: bci.streamDroppedChunks > 0 ? "#ff858e" : "#78e5c5"
+            }
             Item { Layout.fillWidth: true }
         }
         Label {

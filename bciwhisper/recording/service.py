@@ -126,6 +126,7 @@ class RecordingService:
 
     def finish(self, *, force_discard: bool = False) -> RecordingResult | None:
         if not self.recording:
+            self.manual = False
             return None
 
         raw = self._raw
@@ -145,7 +146,8 @@ class RecordingService:
             except Exception:
                 pass
 
-        keep = (not force_discard) and (self.manual or self._locked_seconds >= self.keep_locked_seconds)\n        self.manual = False
+        keep = (not force_discard) and (self.manual or self._locked_seconds >= self.keep_locked_seconds)
+        self.manual = False
         if not keep:
             for path in (raw_path, isolated_path):
                 try:

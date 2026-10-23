@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import threading
+import os
+from pathlib import Path
 
 from PySide6 import QtCore
 
@@ -227,6 +229,41 @@ class BCIWhisperBridge(QtCore.QObject):
     @QtCore.Property(str, notify=transcriptChanged)
     def transcriptModel(self) -> str:
         return self._transcript_model
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def publisherConfigured(self) -> bool:
+        from bciwhisper.broadcast.service import _publisher_credential
+        try:
+            return bool(_publisher_credential())
+        except (OSError, PermissionError):
+            return False
+
+    @QtCore.Property(str, constant=True)
+    def renderPlayerUrl(self) -> str:
+        return "https://bciwhisper-live.onrender.com/player"
+
+    @QtCore.Slot(str)
+    def savePublisherToken(self, token: str) -> None:
+        token = token.strip()
+        if not token or any(ch.isspace() for ch in token):
+            self._set_local_error("Enter a nonempty publisher token without spaces")
+            return
+        path = Path.home() / ".config" / "BCIWhisper" / "publisher.token"
+        path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(path.parent, 0o700)
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix=".publisher-", dir=str(path.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(token)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, path)
+            self._runtime.broadcast.publisher_token = token
+            self._snapshot["last_error"] = ""
+            self.runtimeChanged.emit()
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
 
     # ------------------------------------------------------------------
     # Commands

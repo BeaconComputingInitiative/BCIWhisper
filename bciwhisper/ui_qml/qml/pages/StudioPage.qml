@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Podcast Lab | Studio Transport 59.1
+// BCIWhisper Podcast Lab | Studio Program Bus 59.3
 // Developer Seal: CJB-DEV-2026
 // File SHA-256: generated in packaged release manifest
 import QtQuick
@@ -66,6 +66,23 @@ Item {
                 color: bci.streamDroppedChunks > 0 ? "#ff858e" : "#78e5c5"
             }
             Item { Layout.fillWidth: true }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: "PROGRAM GAIN"; color: "#c3d5db"; font.family: "Oxanium" }
+            Slider {
+                id: programGainControl
+                Layout.fillWidth: true
+                from: 0; to: 2
+                value: bci.programGain
+                onMoved: bci.configureProgramBus(value, bci.programMuted)
+            }
+            Label { text: bci.programGain.toFixed(2) + "×"; color: "#8ee3ec"; font.family: "JetBrains Mono" }
+            CheckBox {
+                text: "MUTE PROGRAM"
+                checked: bci.programMuted
+                onToggled: bci.configureProgramBus(bci.programGain, checked)
+            }
         }
         Label {
             Layout.fillWidth: true

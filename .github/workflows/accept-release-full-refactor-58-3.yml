@@ -160,20 +160,30 @@ jobs:
           url = service.start(48000)
           print("player", url)
 
-          block = np.zeros(4800, dtype=np.float32)
-          for _ in range(4):
-              service.publish(block, 48000)
-              time.sleep(0.1)
+          rate = 48000
+          phase = np.arange(4800, dtype=np.float32) / rate
+          block = (0.15 * np.sin(2.0 * np.pi * 440.0 * phase)).astype(np.float32)
 
-          with urllib.request.urlopen(
-              f"http://{service.host}:{service.port}/api/v1/status",
-              timeout=2.0,
-          ) as response:
-              status = json.loads(response.read().decode("utf-8"))
+          status = {}
+          deadline = time.monotonic() + 5.0
+          while time.monotonic() < deadline:
+              service.publish(block, rate)
+              time.sleep(0.10)
+
+              with urllib.request.urlopen(
+                  f"http://{service.host}:{service.port}/api/v1/status",
+                  timeout=2.0,
+              ) as response:
+                  status = json.loads(response.read().decode("utf-8"))
+
+              if status["stream"]["live"]:
+                  break
 
           print(status)
-          assert status["stream"]["live"] is True
           assert status["stream"]["publisherInputCodec"] == "pcm_s16le"
+          assert status["stream"]["live"] is True
+          assert service.stats["bytes_sent"] > 0
+          assert service.stats["chunks_sent"] > 0
           service.shutdown()
           PY
 

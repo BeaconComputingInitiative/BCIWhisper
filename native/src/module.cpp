@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
+// BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
 // Developer Seal: CJB-DEV-2026
 
 #include <pybind11/numpy.h>
@@ -15,7 +15,7 @@ using bciwhisper::AudioRingBuffer;
 
 PYBIND11_MODULE(_bci_native, m) {
     m.doc() = "BCIWhisper C++20 native audio/DSP primitives";
-    m.attr("__bci_script__") = "58.2";
+    m.attr("__bci_script__") = "58.3";
     m.attr("__bci_abi__") = 1;
 
     py::class_<AudioMetrics>(m, "AudioMetrics")

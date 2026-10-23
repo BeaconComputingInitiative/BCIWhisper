@@ -28,6 +28,7 @@ class ApplicationRuntime:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
+        self._dsp_lock = threading.RLock()
         self._executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="BCI-Service")
         self.state_machine = BCIApplicationStateMachine()
         self.settings = SettingsService()
@@ -131,7 +132,8 @@ class ApplicationRuntime:
 
     def select_device(self, device_id: int, device_name: str, mode: str) -> None:
         self.broadcast.stop()
-        self.dsp.reset_baseline()
+        with self._dsp_lock:
+            self.dsp.reset_baseline()
         self.audio.select_device(device_id=device_id, device_name=device_name, mode=mode)
         self.settings.update_section(
             "audio",
@@ -142,6 +144,22 @@ class ApplicationRuntime:
             },
         )
         self.state_machine.mark_recovering("microphone selection changed")
+
+    def recalibrate_baseline(self) -> None:
+        """Restart acoustic calibration on the current capture stream."""
+        if not self.audio.running or not self.audio.session:
+            raise RuntimeError("A live microphone session is required to recalibrate")
+        with self._dsp_lock:
+            self.dsp.reset_baseline()
+        with self._lock:
+            self._snapshot["baseline_progress"] = 0.0
+            self._snapshot["baseline_complete"] = False
+            self._snapshot["noise_floor_db"] = -120.0
+        self.state_machine.mark_calibrating("manual room baseline recalibration")
+        self.telemetry.log("BASELINE_RECALIBRATION_REQUESTED", {
+            "device_name": self.audio.session.get("device_name", ""),
+            "sample_rate": self.audio.session.get("sample_rate", 0),
+        })
 
     def refresh_devices(self) -> None:
         self.audio.request_probe()
@@ -214,7 +232,10 @@ class ApplicationRuntime:
                 self._snapshot["device_id"] = int(event.get("device_id", -1))
                 self._snapshot["sample_rate"] = int(event.get("sample_rate", 0))
                 self._snapshot["last_error"] = ""
-                self.dsp.reset_baseline()
+                with self._dsp_lock:
+                    self.dsp.reset_baseline()
+                self._snapshot["baseline_progress"] = 0.0
+                self._snapshot["baseline_complete"] = False
                 self.state_machine.mark_calibrating("first capture session opened")
             elif kind in {"open_error", "audio_consumer_error"}:
                 self._snapshot["last_error"] = str(event.get("message", "audio error"))
@@ -225,7 +246,8 @@ class ApplicationRuntime:
 
     def _on_audio_block(self, block: AudioBlock) -> None:
         try:
-            frame = self.dsp.process(block.samples, block.sample_rate)
+            with self._dsp_lock:
+                frame = self.dsp.process(block.samples, block.sample_rate)
             if frame.baseline_complete:
                 self.state_machine.mark_ready("room baseline complete")
 

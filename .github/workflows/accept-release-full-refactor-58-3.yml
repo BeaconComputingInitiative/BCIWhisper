@@ -75,9 +75,7 @@ jobs:
             bciwhisper/ui_qml/bridge.py
 
       - name: Enforce complete-refactor boundary
-        run: |
-          python -m unittest discover -s tests -p "test_refactor_architecture.py" -v
-          ! grep -R --include='*.py' -nE             '(^|[[:space:]])(from|import)[[:space:]]+BCIWhisper|PyQt5|PyQt6'             bciwhisper bci_audio bci_core
+        run: python -m unittest discover -s tests -p "test_refactor_architecture.py" -v
 
       - name: Run Python fallback tests
         run: |

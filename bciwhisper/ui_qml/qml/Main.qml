@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
+// BCIWhisper Script 59.0 | Podcast Lab Studio Baseline
 // Developer Seal: CJB-DEV-2026
 
 import QtQuick
@@ -15,7 +15,7 @@ ApplicationWindow {
     height: 920
     minimumWidth: 1040
     minimumHeight: 680
-    title: "BCIWhisper // " + bci.projectVersion + " // Script " + bci.scriptRevision
+    title: "BCIWhisper Podcast Lab // " + bci.projectVersion + " // Script " + bci.scriptRevision
     color: "#05080d"
 
     palette.window: "#05080d"
@@ -52,7 +52,7 @@ ApplicationWindow {
                 }
 
                 Label {
-                    text: "BCIWhisper"
+                    text: "BCIWhisper PODCAST LAB"
                     font.family: "Oxanium"
                     font.pixelSize: 29
                     font.weight: Font.Bold
@@ -122,6 +122,7 @@ ApplicationWindow {
 
                 Repeater {
                     model: [
+                        "STUDIO",
                         "MONITOR",
                         "RECORDINGS",
                         "TRANSCRIPTS",
@@ -203,6 +204,7 @@ ApplicationWindow {
                 anchors.margins: 14
                 currentIndex: window.pageIndex
 
+                StudioPage {}
                 MonitorPage {}
                 RecordingsPage {}
                 TranscriptPage {}

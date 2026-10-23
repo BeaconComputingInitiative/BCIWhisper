@@ -80,6 +80,7 @@ class ApplicationRuntime:
             "spectrum_hz": [],
             "recording": False,
             "last_recording": "",
+            "last_multitrack_manifest": "",
             "go_live": False,
             "player_url": "",
             "last_error": "",
@@ -208,6 +209,8 @@ class ApplicationRuntime:
     def stop_multitrack_recording(self) -> dict:
         result = self.multitrack.stop()
         if result:
+            with self._lock:
+                self._snapshot["last_multitrack_manifest"] = result["manifest"]
             self.telemetry.log("MULTITRACK_SAVED", result)
         return result
 

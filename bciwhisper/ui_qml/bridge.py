@@ -189,6 +189,14 @@ class BCIWhisperBridge(QtCore.QObject):
     def recording(self) -> bool:
         return bool(self._value("recording", False))
 
+    @QtCore.Property(int, notify=runtimeChanged)
+    def streamQueueDepth(self) -> int:
+        return int(self._value("broadcast", {}).get("queue_depth", 0))
+
+    @QtCore.Property(int, notify=runtimeChanged)
+    def streamDroppedChunks(self) -> int:
+        return int(self._value("broadcast", {}).get("dropped_chunks", 0))
+
     @QtCore.Property(bool, notify=runtimeChanged)
     def goLive(self) -> bool:
         return bool(self._value("go_live", False))

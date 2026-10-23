@@ -32,6 +32,7 @@ class BroadcastService:
         if self.admin_token == self.publisher_token:
             self.admin_token = secrets.token_urlsafe(32)
 
+        self.gateway_url = os.environ.get("BCI_GATEWAY_URL", "").strip().rstrip("/")
         self.public_base = os.environ.get(
             "BCI_PUBLIC_BASE_URL",
             f"http://{self.host}:{self.port}",
@@ -66,6 +67,8 @@ class BroadcastService:
             }
 
     def _start_local_gateway(self) -> None:
+        if self.gateway_url:
+            return
         if os.environ.get("BCI_MANAGE_LOCAL_GATEWAY", "1").strip() not in {"1", "true", "yes"}:
             return
         if self._gateway is not None and self._gateway.poll() is None:
@@ -120,7 +123,14 @@ class BroadcastService:
 
         self._start_local_gateway()
 
-        url = f"ws://{self.host}:{self.port}/api/v1/publish/{self.stream_id}"
+        base = self.gateway_url or f"ws://{self.host}:{self.port}"
+        if base.startswith("https://"):
+            base = "wss://" + base[len("https://"):]
+        elif base.startswith("http://"):
+            base = "ws://" + base[len("http://"):]
+        if not base.startswith(("ws://", "wss://")):
+            raise ValueError("BCI_GATEWAY_URL must use https:// or wss:// (or http/ws for local testing)")
+        url = f"{base}/api/v1/publish/{self.stream_id}"
         ws = connect(
             url,
             additional_headers={

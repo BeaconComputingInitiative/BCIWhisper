@@ -13,6 +13,7 @@ from PySide6 import QtCore
 from bciwhisper.app import ApplicationRuntime
 from bciwhisper.services.native_dsp import NativeDSPService
 from bciwhisper.version import BUILD, PROJECT_VERSION, SCRIPT_REVISION
+from bciwhisper.recording.timeline import EpisodeTimeline
 
 
 class BCIWhisperBridge(QtCore.QObject):
@@ -30,6 +31,7 @@ class BCIWhisperBridge(QtCore.QObject):
         self._snapshot = self._runtime.snapshot()
         self._recordings: list[dict] = []
         self._telemetry: list[dict] = []
+        self._episode = EpisodeTimeline()
         self._transcript_text = ""
         self._transcript_status = "IDLE"
         self._transcript_backend = ""
@@ -322,6 +324,53 @@ class BCIWhisperBridge(QtCore.QObject):
     @QtCore.Property(str, notify=transcriptChanged)
     def transcriptModel(self) -> str:
         return self._transcript_model
+
+    @QtCore.Property(list, notify=runtimeChanged)
+    def episodeTracks(self):
+        return list(self._episode.tracks)
+
+    @QtCore.Property(list, notify=runtimeChanged)
+    def episodeMarkers(self):
+        return list(self._episode.markers)
+
+    @QtCore.Slot(str)
+    def importEpisodeTrack(self, path: str) -> None:
+        try:
+            self._episode.import_wav(path)
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot(int, float, float)
+    def trimEpisodeTrack(self, index: int, start: float, end: float) -> None:
+        try:
+            self._episode.trim(index, start, end)
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot(str)
+    def saveEpisode(self, filename: str) -> None:
+        try:
+            self._episode.save(filename)
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot(str)
+    def loadEpisode(self, filename: str) -> None:
+        try:
+            self._episode = EpisodeTimeline.load(filename)
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot(float, str)
+    def addEpisodeMarker(self, seconds: float, text: str) -> None:
+        try:
+            self._episode.add_transcript_marker(seconds, text)
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
 
     @QtCore.Property(bool, notify=runtimeChanged)
     def publisherConfigured(self) -> bool:

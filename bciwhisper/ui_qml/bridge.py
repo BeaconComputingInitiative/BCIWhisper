@@ -1,8 +1,6 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
+# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
 # Developer Seal: CJB-DEV-2026
-# Canonical Payload SHA-256: 8ca878b67682a94d23d63443d4c99ce22b600a2fa1fe81ef8ab1159722e68b68
-# Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
 
 from __future__ import annotations
 
@@ -10,6 +8,7 @@ from pathlib import Path
 
 from PySide6 import QtCore
 
+from bciwhisper.services.native_dsp import NativeDSPService
 from bciwhisper.services.transcription import TranscriptionService
 from bciwhisper.version import BUILD, PROJECT_VERSION, SCRIPT_REVISION
 
@@ -38,23 +37,31 @@ class BCIWhisperBridge(QtCore.QObject):
     """Stable QML-facing facade.
 
     QML talks only to this bridge. The bridge delegates domain work to services;
-    it does not own microphones, DSP, SQLite, or Whisper model internals.
+    it never owns microphones, PortAudio, DSP implementation state, SQLite,
+    Whisper model internals, or the broadcast process.
     """
 
     identityChanged = QtCore.Signal()
     transcriptionChanged = QtCore.Signal()
     transcriptChanged = QtCore.Signal()
+    nativeChanged = QtCore.Signal()
 
     def __init__(self, parent: QtCore.QObject | None = None) -> None:
         super().__init__(parent)
         self._transcription = TranscriptionService()
+        self._native = NativeDSPService()
         self._pool = QtCore.QThreadPool.globalInstance()
+
         self._busy = False
         self._progress = 0
         self._status = self._initial_status()
         self._transcript_text = ""
         self._transcript_path = ""
         self._error_text = ""
+
+        self._native_self_test = "NOT_RUN"
+        self._native_metrics = ""
+        self.runNativeSelfTest()
 
     def _initial_status(self) -> str:
         return "READY" if self._transcription.available else "UNAVAILABLE"
@@ -70,6 +77,42 @@ class BCIWhisperBridge(QtCore.QObject):
     @QtCore.Property(str, notify=identityChanged)
     def engineeringBuild(self) -> str:
         return BUILD
+
+    @QtCore.Property(str, notify=nativeChanged)
+    def nativeBackend(self) -> str:
+        return self._native.backend_label
+
+    @QtCore.Property(bool, notify=nativeChanged)
+    def nativeLoaded(self) -> bool:
+        return self._native.native_loaded
+
+    @QtCore.Property(str, notify=nativeChanged)
+    def nativeSelfTest(self) -> str:
+        return self._native_self_test
+
+    @QtCore.Property(str, notify=nativeChanged)
+    def nativeMetrics(self) -> str:
+        return self._native_metrics
+
+    @QtCore.Property(str, notify=nativeChanged)
+    def architectureSummary(self) -> str:
+        native = "C++20 ACTIVE" if self._native.native_loaded else "NUMPY FALLBACK"
+        return f"QML / Qt Quick → Python services → {native}"
+
+    @QtCore.Slot()
+    def runNativeSelfTest(self) -> None:
+        try:
+            result = self._native.self_test()
+            self._native_self_test = "PASS" if result["ok"] else "FAIL"
+            self._native_metrics = (
+                f"RMS {result['rms']:.4f} • "
+                f"Peak {result['peak']:.4f} • "
+                f"ZCR {result['zero_crossing_rate']:.4f}"
+            )
+        except Exception as exc:
+            self._native_self_test = "FAIL"
+            self._native_metrics = str(exc)
+        self.nativeChanged.emit()
 
     @QtCore.Property(str, notify=transcriptionChanged)
     def transcriptionBackend(self) -> str:

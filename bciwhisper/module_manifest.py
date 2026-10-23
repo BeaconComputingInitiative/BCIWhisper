@@ -1,8 +1,6 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.1 | Engineering Build 2026.10.22-r6.35.1
+# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
 # Developer Seal: CJB-DEV-2026
-# Canonical Payload SHA-256: 24bac0bc7b64ed68fb2dcf1e78aad8e7a6162ffe9cddedb791fe897920e8ebec
-# Integrity rule: hash covers this file's payload below this header, if and only if the payload is unchanged.
 
 from __future__ import annotations
 
@@ -16,18 +14,17 @@ MODULE_LAYERS = {
     "telemetry": 1,
 
     "audio": 2,
+    "native": 3,
+    "dsp": 4,
+    "recording": 5,
 
-    "dsp": 3,
+    "transcription": 6,
+    "broadcast": 6,
 
-    "recording": 4,
+    "services": 7,
 
-    "transcription": 5,
-    "broadcast": 5,
-
-    "services": 6,
-
-    "ui": 7,
-    "ui_qml": 7,
+    "ui": 8,
+    "ui_qml": 8,
 }
 
 STARTUP_SEQUENCE = (
@@ -36,6 +33,7 @@ STARTUP_SEQUENCE = (
     "core",
     "telemetry",
     "audio",
+    "native",
     "dsp",
     "recording",
     "transcription",
@@ -49,12 +47,19 @@ RUNTIME_OWNERSHIP = {
     "config": "paths, environment, immutable runtime configuration",
     "core": "application lifecycle, contracts, orchestration primitives",
     "telemetry": "logs, SQLite, structured health/events",
-    "audio": "microphone discovery, PortAudio ownership, PCM transport",
+    "audio": "microphone discovery, isolated PortAudio ownership, PCM transport",
+    "native": "C++20 deterministic low-latency primitives exposed through pybind11",
     "dsp": "filtering, baseline, spectrum, detection, reconstruction, mastering math",
     "recording": "event capture lifecycle, retention, WAV/file library",
     "transcription": "OpenAI Whisper, Faster-Whisper, whisper.cpp backend adapters",
-    "broadcast": "BroadcastBus, Go-Live state, publisher, Bun gateway process/client",
+    "broadcast": "BroadcastBus, Go-Live state, publisher, gateway process/client",
     "services": "UI-independent application use-cases and subsystem coordination",
     "ui": "57.10 PyQt6 presentation compatibility boundary",
-    "ui_qml": "Script 58.1 QML / Qt Quick presentation via PySide6 only",
+    "ui_qml": "58.x QML / Qt Quick presentation via PySide6 only",
+}
+
+LANGUAGE_ARCHITECTURE = {
+    "qml": "presentation, controls, animation, visualization",
+    "python": "application orchestration, services, lifecycle, transcription, telemetry",
+    "cpp20": "timing-sensitive audio/DSP primitives with deterministic ownership",
 }

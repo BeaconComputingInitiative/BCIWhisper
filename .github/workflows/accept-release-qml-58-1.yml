@@ -7,10 +7,7 @@
 name: BCIWhisper 58.1 QML Acceptance
 
 on:
-  pull_request:
-    branches: [master]
-  push:
-    branches: [master]
+  workflow_dispatch:
 
 permissions:
   contents: write

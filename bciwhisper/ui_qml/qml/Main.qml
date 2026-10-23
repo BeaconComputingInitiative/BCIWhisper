@@ -13,10 +13,10 @@ ApplicationWindow {
     visible: true
     width: 1440
     height: 920
-    minimumWidth: 1040
-    minimumHeight: 680
+    minimumWidth: 1140
+    minimumHeight: 760
     title: "BCIWhisper Podcast Lab // " + bci.projectVersion + " // Script " + bci.scriptRevision
-    color: "#05080d"
+    color: "#030911"
 
     palette.window: "#05080d"
     palette.windowText: "#dce6ec"
@@ -30,9 +30,9 @@ ApplicationWindow {
     property int pageIndex: 0
 
     header: Rectangle {
-        height: 88
-        color: "#080b10"
-        border.color: "#421923"
+        height: 104
+        color: "#07101b"
+        border.color: "#3b1e37"
         border.width: 1
 
         RowLayout {
@@ -45,16 +45,16 @@ ApplicationWindow {
                 spacing: 0
 
                 Label {
-                    text: "BEACON COMPUTING INITIATIVE"
+                    text: "BEACON COMPUTING INITIATIVE   /   SIGNAL OPERATIONS"
                     font.family: "Oxanium"
                     font.pixelSize: 12
                     color: "#5fe7ef"
                 }
 
                 Label {
-                    text: "BCIWhisper PODCAST LAB"
+                    text: "BCI // PODCAST LAB"
                     font.family: "Oxanium"
-                    font.pixelSize: 29
+                    font.pixelSize: 30
                     font.weight: Font.Bold
                     color: "#f2f6f7"
                 }
@@ -109,16 +109,18 @@ ApplicationWindow {
         spacing: 12
 
         Rectangle {
-            Layout.preferredWidth: 188
+            Layout.preferredWidth: 206
             Layout.fillHeight: true
-            radius: 12
-            color: "#080d12"
-            border.color: "#202e35"
+            radius: 18
+            color: "#091625"
+            border.color: "#22516a"
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.margins: 10
-                spacing: 6
+                spacing: 8
+
+                Label { text: "WORKSPACES"; font.family: "Oxanium"; font.pixelSize: 11; color: "#6dbac8"; Layout.leftMargin: 10; Layout.topMargin: 12 }
 
                 Repeater {
                     model: [
@@ -137,8 +139,15 @@ ApplicationWindow {
                         required property string modelData
                         required property int index
                         Layout.fillWidth: true
-                        text: modelData
+                        text: "◈  " + modelData
+                        font.family: "Rajdhani"
+                        font.pixelSize: 15
                         checkable: true
+                        background: Rectangle {
+                            radius: 9
+                            color: window.pageIndex === index ? "#153647" : (parent.hovered ? "#152635" : "#0a1927")
+                            border.color: window.pageIndex === index ? "#58dce9" : "#1c3444"
+                        }
                         checked: window.pageIndex === index
                         onClicked: window.pageIndex = index
                     }
@@ -196,9 +205,9 @@ ApplicationWindow {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            radius: 12
-            color: "#070b10"
-            border.color: "#202e35"
+            radius: 18
+            color: "#07121e"
+            border.color: "#27556a"
 
             StackLayout {
                 anchors.fill: parent
@@ -219,8 +228,8 @@ ApplicationWindow {
     }
 
     footer: Rectangle {
-        height: 34
-        color: "#070b10"
+        height: 39
+        color: "#07101b"
         border.color: "#421923"
 
         RowLayout {

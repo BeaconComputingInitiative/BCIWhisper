@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Podcast Lab | Studio Program Bus 59.3
+// BCIWhisper Podcast Lab | Dual-Microphone 59.6
 // Developer Seal: CJB-DEV-2026
 // File SHA-256: generated in packaged release manifest
 import QtQuick
@@ -82,6 +82,46 @@ Item {
                 text: "MUTE PROGRAM"
                 checked: bci.programMuted
                 onClicked: bci.configureProgramBus(bci.programGain, checked)
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: "SECONDARY MIC"; font.family: "Oxanium"; color: "#c3d5db" }
+            ComboBox {
+                id: secondaryDevice
+                Layout.preferredWidth: 260
+                model: bci.devices
+                textRole: "name"
+                valueRole: "id"
+                enabled: !bci.secondaryRunning && !bci.multitrackRecording
+            }
+            Button {
+                text: bci.secondaryRunning ? "MIC 2 CONNECTED" : "CONNECT MIC 2"
+                enabled: !bci.secondaryRunning && secondaryDevice.currentIndex >= 0
+                onClicked: bci.startSecondary(Number(secondaryDevice.currentValue))
+            }
+            Button {
+                text: "DISCONNECT MIC 2"
+                enabled: bci.secondaryRunning && !bci.multitrackRecording
+                onClicked: bci.stopSecondary()
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Button {
+                text: "START 2-TRACK"
+                enabled: bci.secondaryRunning && bci.sampleRate > 0 && !bci.multitrackRecording
+                onClicked: bci.startMultitrack()
+            }
+            Button {
+                text: "STOP 2-TRACK"
+                enabled: bci.multitrackRecording
+                onClicked: bci.stopMultitrack()
+            }
+            Label {
+                text: bci.multitrackRecording ? "PRIMARY + SECONDARY WAV ACTIVE" : "TWO INPUTS REQUIRED"
+                font.family: "JetBrains Mono"
+                color: bci.multitrackRecording ? "#7ce5c5" : "#82939c"
             }
         }
         Label {

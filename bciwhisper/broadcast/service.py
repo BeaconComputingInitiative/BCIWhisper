@@ -67,7 +67,6 @@ class BroadcastService:
         self._last_error = ""
         self._send_queue = queue.Queue(maxsize=128)
         self._sender = None
-        self._stop_requested = threading.Event()
         self._dropped_chunks = 0
 
     @property
@@ -148,6 +147,8 @@ class BroadcastService:
                 return self.player_url
 
         self.publisher_token = _publisher_credential() or self.publisher_token
+        if int(sample_rate) <= 0:
+            raise ValueError("A positive sample rate is required")
         if self.gateway_url and not self.publisher_token:
             raise RuntimeError(
                 "Render publisher credential missing. Set BCI_PUBLISHER_TOKEN or "
@@ -196,7 +197,6 @@ class BroadcastService:
             self._last_error = ""
             self._dropped_chunks = 0
             self._send_queue = queue.Queue(maxsize=128)
-            self._stop_requested.clear()
             self._sender = threading.Thread(target=self._send_loop, args=(ws, self._send_queue), daemon=True, name="BCI-StreamPublisher")
             self._sender.start()
         return self.player_url

@@ -11,6 +11,7 @@ from typing import Any
 
 from bci_core.state import BCIApplicationStateMachine
 from bciwhisper.audio.service import AudioBlock, AudioService
+from bciwhisper.audio.program_bus import StudioProgramBus
 from bciwhisper.broadcast.service import BroadcastService
 from bciwhisper.config.runtime import RUNTIME
 from bciwhisper.dsp.engine import DSPEngine
@@ -36,6 +37,7 @@ class ApplicationRuntime:
         self.telemetry = TelemetryDatabase()
         self.dsp = DSPEngine(baseline_seconds=RUNTIME.baseline_seconds)
         self.recording = RecordingService()
+        self.program_bus = StudioProgramBus()
         self.library = RecordingLibrary()
         self.processing = ProcessingService()
         self.transcription = TranscriptionService()
@@ -89,6 +91,7 @@ class ApplicationRuntime:
         result["go_live"] = self.broadcast.live
         result["player_url"] = self.broadcast.player_url if self.broadcast.live else ""
         result["broadcast"] = self.broadcast.stats
+        result["program_bus"] = self.program_bus.settings()
         return result
 
     def start(self) -> None:
@@ -166,6 +169,10 @@ class ApplicationRuntime:
 
     def refresh_devices(self) -> None:
         self.audio.request_probe()
+
+    def configure_program_bus(self, gain: float, muted: bool) -> None:
+        self.program_bus.configure(gain, muted)
+        self.telemetry.log("PROGRAM_BUS_UPDATED", self.program_bus.settings())
 
     def start_podcast_recording(self) -> None:
         with self._recording_lock:
@@ -269,10 +276,11 @@ class ApplicationRuntime:
             if frame.baseline_complete:
                 self.state_machine.mark_ready("room baseline complete")
 
+            program = self.program_bus.process(frame.filtered)
             with self._recording_lock:
                 result = self.recording.feed(
                     raw=block.samples,
-                    isolated=frame.filtered,
+                    isolated=program,
                     sample_rate=block.sample_rate,
                     locked=frame.active,
                 )
@@ -280,7 +288,7 @@ class ApplicationRuntime:
                 self._handle_recording_complete(result)
 
             if self.broadcast.live:
-                self.broadcast.publish(frame.filtered, block.sample_rate)
+                self.broadcast.publish(program, block.sample_rate)
 
             stride = max(1, len(frame.spectrum_db) // 256)
             spectrum_db = frame.spectrum_db[::stride][:256].tolist()

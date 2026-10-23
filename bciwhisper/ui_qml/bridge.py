@@ -180,6 +180,51 @@ class BCIWhisperBridge(QtCore.QObject):
             self._set_local_error(str(exc))
 
     @QtCore.Property(bool, notify=runtimeChanged)
+    def secondaryRunning(self) -> bool:
+        return bool(self._value("secondary_running", False))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def multitrackRecording(self) -> bool:
+        return bool(self._value("multitrack_recording", False))
+
+    @QtCore.Slot(int)
+    def startSecondary(self, device_id: int) -> None:
+        try:
+            self._runtime.start_secondary_microphone(device_id)
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot()
+    def stopSecondary(self) -> None:
+        try:
+            self._runtime.stop_secondary_microphone()
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot()
+    def startMultitrack(self) -> None:
+        try:
+            self._runtime.start_multitrack_recording()
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot()
+    def stopMultitrack(self) -> None:
+        try:
+            self._runtime.stop_multitrack_recording()
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+            self.refreshRecordings()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
     def podcastRecording(self) -> bool:
         return bool(self._value("manual_recording", False))
 

@@ -81,7 +81,7 @@ Item {
             CheckBox {
                 text: "MUTE PROGRAM"
                 checked: bci.programMuted
-                onToggled: bci.configureProgramBus(bci.programGain, checked)
+                onClicked: bci.configureProgramBus(bci.programGain, checked)
             }
         }
         Label {

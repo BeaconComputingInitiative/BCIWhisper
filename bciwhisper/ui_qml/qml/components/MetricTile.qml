@@ -10,14 +10,20 @@ Rectangle {
 
     implicitHeight: 104
     radius: 15
-    color: "#0b1a29"
-    border.color: "#2d6170"
+    gradient: Gradient {
+        GradientStop { position: 0; color: "#29475a" }
+        GradientStop { position: 0.16; color: "#132b3a" }
+        GradientStop { position: 1; color: "#071221" }
+    }
+    border.width: 2
+    border.color: "#3d7887"
 
     Rectangle {
         anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
         anchors.leftMargin: 17; anchors.rightMargin: 17
         height: 2; color: "#51c8d9"; opacity: .75
     }
+    Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 8; height: 2; color: "#030911"; opacity: .95 }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12

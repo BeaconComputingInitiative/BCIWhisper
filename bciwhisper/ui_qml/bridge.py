@@ -364,6 +364,14 @@ class BCIWhisperBridge(QtCore.QObject):
         except Exception as exc:
             self._set_local_error(str(exc))
 
+    @QtCore.Slot(int, float, bool)
+    def setEpisodeTrackMix(self, index: int, gain: float, muted: bool) -> None:
+        try:
+            self._episode.set_mix(index, gain, muted)
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
     @QtCore.Slot(float, str)
     def addEpisodeMarker(self, seconds: float, text: str) -> None:
         try:

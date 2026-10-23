@@ -29,6 +29,7 @@ class ApplicationRuntime:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._dsp_lock = threading.RLock()
+        self._recording_lock = threading.RLock()
         self._executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="BCI-Service")
         self.state_machine = BCIApplicationStateMachine()
         self.settings = SettingsService()
@@ -84,6 +85,7 @@ class ApplicationRuntime:
         result["phase_reason"] = self.state_machine.reason
         result["audio_pid"] = int(self.audio.pid or 0)
         result["recording"] = self.recording.recording
+        result["manual_recording"] = self.recording.manual
         result["go_live"] = self.broadcast.live
         result["player_url"] = self.broadcast.player_url if self.broadcast.live else ""
         result["broadcast"] = self.broadcast.stats
@@ -103,7 +105,8 @@ class ApplicationRuntime:
     def stop(self) -> None:
         self.state_machine.mark_stopping("runtime stop requested")
         try:
-            result = self.recording.stop()
+            with self._recording_lock:
+                result = self.recording.stop()
             if result is not None:
                 self._handle_recording_complete(result)
         finally:
@@ -163,6 +166,21 @@ class ApplicationRuntime:
 
     def refresh_devices(self) -> None:
         self.audio.request_probe()
+
+    def start_podcast_recording(self) -> None:
+        with self._recording_lock:
+            rate = int(self.snapshot().get("sample_rate") or 0)
+            if not self.audio.running or rate <= 0:
+                raise RuntimeError("Microphone must be connected before recording")
+            self.recording.start_manual(rate)
+        self.telemetry.log("PODCAST_RECORDING_STARTED", {"sample_rate": rate})
+
+    def stop_podcast_recording(self) -> None:
+        with self._recording_lock:
+            result = self.recording.stop_manual()
+        if result is not None:
+            self._handle_recording_complete(result)
+            self.telemetry.log("PODCAST_RECORDING_STOPPED", {"path": str(result.raw_path)})
 
     def recordings(self) -> list[dict]:
         return self.library.rows()
@@ -251,12 +269,13 @@ class ApplicationRuntime:
             if frame.baseline_complete:
                 self.state_machine.mark_ready("room baseline complete")
 
-            result = self.recording.feed(
-                raw=block.samples,
-                isolated=frame.filtered,
-                sample_rate=block.sample_rate,
-                locked=frame.active,
-            )
+            with self._recording_lock:
+                result = self.recording.feed(
+                    raw=block.samples,
+                    isolated=frame.filtered,
+                    sample_rate=block.sample_rate,
+                    locked=frame.active,
+                )
             if result is not None:
                 self._handle_recording_complete(result)
 

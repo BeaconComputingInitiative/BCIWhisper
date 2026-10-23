@@ -1,0 +1,42 @@
+# BEACON COMPUTING INITIATIVE
+# Podcast Lab 59.2 automated sequence validation
+# Developer Seal: CJB-DEV-2026
+# SHA-256: calculate on exported evidence
+name: BCIWhisper 59.2 Sequence Tests
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      BCI_DATA_DIR: /tmp/bciwhisper-sequence
+      BCI_GATEWAY_URL: "wss://example.invalid"
+      BCI_PUBLISHER_TOKEN: "testing-not-a-production-token"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2
+          python -m pip install -r requirements-qml-desktop.txt
+      - name: Compile source modules
+        run: python -m compileall -q bciwhisper bci_audio bci_core tests
+      - name: Run podcast sequences
+        run: python -m unittest discover -s tests -p "test_podcast_59_2.py" -v
+      - name: Integrity record
+        if: always()
+        run: |
+          mkdir -p release-evidence
+          {
+            echo "BEACON COMPUTING INITIATIVE"
+            echo "Developer Seal: CJB-DEV-2026"
+            echo "Commit: $GITHUB_SHA"
+          } > release-evidence/SEQUENCE_59_2.txt
+          sha256sum release-evidence/SEQUENCE_59_2.txt

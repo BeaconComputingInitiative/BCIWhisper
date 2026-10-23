@@ -24,7 +24,7 @@ class EpisodeTimeline:
         if rate <= 0 or channels != 1:
             raise ValueError("Timeline requires valid mono WAV sources")
         track = {"source": str(path), "rate": rate, "frames": frames,
-                 "start": 0.0, "in": 0.0, "out": frames / rate, "muted": False}
+                 "start": 0.0, "in": 0.0, "out": frames / rate, "muted": False, "gain": 1.0}
         self.tracks.append(track)
         return dict(track)
 
@@ -34,6 +34,12 @@ class EpisodeTimeline:
         if not 0 <= start_seconds < end_seconds <= maximum:
             raise ValueError("Trim must lie inside the source and have positive duration")
         track["in"], track["out"] = float(start_seconds), float(end_seconds)
+
+    def set_mix(self, index: int, gain: float, muted: bool) -> None:
+        if not 0.0 <= gain <= 2.0:
+            raise ValueError("Track gain must be between 0 and 2")
+        self.tracks[index]["gain"] = float(gain)
+        self.tracks[index]["muted"] = bool(muted)
 
     def add_transcript_marker(self, seconds: float, text: str) -> None:
         if seconds < 0 or not text.strip():
@@ -59,7 +65,7 @@ class EpisodeTimeline:
             obj.trim(len(obj.tracks)-1, float(item["in"]), float(item["out"]))
             track = obj.tracks[-1]
             track["start"] = max(0.0, float(item["start"]))
-            track["muted"] = bool(item.get("muted", False))
+            obj.set_mix(len(obj.tracks)-1, float(item.get("gain", 1.0)), bool(item.get("muted", False)))
         for marker in data.get("markers", []):
             obj.add_transcript_marker(float(marker["time"]), str(marker["text"]))
         return obj

@@ -8,11 +8,16 @@ Rectangle {
     property string value: ""
     property string detail: ""
 
-    implicitHeight: 82
-    radius: 10
-    color: "#0a1016"
-    border.color: "#22333d"
+    implicitHeight: 104
+    radius: 15
+    color: "#0b1a29"
+    border.color: "#2d6170"
 
+    Rectangle {
+        anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
+        anchors.leftMargin: 17; anchors.rightMargin: 17
+        height: 2; color: "#51c8d9"; opacity: .75
+    }
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -28,9 +33,9 @@ Rectangle {
         Label {
             text: root.value
             font.family: "Oxanium"
-            font.pixelSize: 22
+            font.pixelSize: 24
             font.weight: Font.DemiBold
-            color: "#ecf4f6"
+            color: "#e8fbff"
         }
 
         Label {

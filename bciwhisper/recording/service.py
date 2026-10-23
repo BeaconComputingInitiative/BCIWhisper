@@ -45,6 +45,7 @@ class RecordingService:
         self._started = 0.0
         self._locked_seconds = 0.0
         self._inactive_seconds = 0.0
+        self.manual = False
 
     @property
     def recording(self) -> bool:
@@ -68,6 +69,19 @@ class RecordingService:
             writer.setsampwidth(2)
             writer.setframerate(self._sample_rate)
 
+    def start_manual(self, sample_rate: int) -> None:
+        if self.recording:
+            raise RuntimeError("A recording is already active")
+        if sample_rate <= 0:
+            raise ValueError("A valid microphone sample rate is required")
+        self._open(sample_rate)
+        self.manual = True
+
+    def stop_manual(self) -> RecordingResult | None:
+        if not self.manual:
+            return None
+        return self.finish()
+
     @staticmethod
     def _pcm16(samples: np.ndarray) -> bytes:
         x = np.asarray(samples, dtype=np.float32).reshape(-1)
@@ -88,7 +102,7 @@ class RecordingService:
 
         block_seconds = raw.size / float(sample_rate)
 
-        if locked and not self.recording:
+        if locked and not self.recording and not self.manual:
             self._open(sample_rate)
 
         if not self.recording:
@@ -106,7 +120,7 @@ class RecordingService:
         else:
             self._inactive_seconds += block_seconds
 
-        if self._inactive_seconds >= self.release_seconds:
+        if not self.manual and self._inactive_seconds >= self.release_seconds:
             return self.finish()
         return None
 
@@ -131,7 +145,7 @@ class RecordingService:
             except Exception:
                 pass
 
-        keep = (not force_discard) and self._locked_seconds >= self.keep_locked_seconds
+        keep = (not force_discard) and (self.manual or self._locked_seconds >= self.keep_locked_seconds)\n        self.manual = False
         if not keep:
             for path in (raw_path, isolated_path):
                 try:

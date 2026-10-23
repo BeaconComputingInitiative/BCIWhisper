@@ -176,7 +176,7 @@ class BCIWhisperBridge(QtCore.QObject):
     def lastError(self) -> str:
         return str(self._value("last_error", ""))
 
-    @QtCore.Property("QVariantList", notify=runtimeChanged)
+    @QtCore.Property(list, notify=runtimeChanged)
     def devices(self):
         rows = []
         for index, item in enumerate(self._value("devices", []) or []):
@@ -196,19 +196,19 @@ class BCIWhisperBridge(QtCore.QObject):
             )
         return rows
 
-    @QtCore.Property("QVariantList", notify=runtimeChanged)
+    @QtCore.Property(list, notify=runtimeChanged)
     def spectrumDb(self):
         return list(self._value("spectrum_db", []) or [])
 
-    @QtCore.Property("QVariantList", notify=runtimeChanged)
+    @QtCore.Property(list, notify=runtimeChanged)
     def spectrumHz(self):
         return list(self._value("spectrum_hz", []) or [])
 
-    @QtCore.Property("QVariantList", notify=recordingsChanged)
+    @QtCore.Property(list, notify=recordingsChanged)
     def recordings(self):
         return list(self._recordings)
 
-    @QtCore.Property("QVariantList", notify=telemetryChanged)
+    @QtCore.Property(list, notify=telemetryChanged)
     def telemetryEvents(self):
         return list(self._telemetry)
 

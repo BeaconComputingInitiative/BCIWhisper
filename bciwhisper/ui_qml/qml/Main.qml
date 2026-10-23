@@ -31,7 +31,11 @@ ApplicationWindow {
 
     header: Rectangle {
         height: 104
-        color: "#07101b"
+        gradient: Gradient {
+            GradientStop { position: 0; color: "#193344" }
+            GradientStop { position: 0.12; color: "#0f1d30" }
+            GradientStop { position: 1; color: "#080b17" }
+        }
         border.color: "#3b1e37"
         border.width: 1
 
@@ -112,8 +116,13 @@ ApplicationWindow {
             Layout.preferredWidth: 206
             Layout.fillHeight: true
             radius: 18
-            color: "#091625"
-            border.color: "#22516a"
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#1c3547" }
+                GradientStop { position: 0.13; color: "#122437" }
+                GradientStop { position: 1; color: "#07111f" }
+            }
+            border.color: "#43738a"
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 14; height: 2; radius: 2; color: "#79e6f0"; opacity: 0.6 }
 
             ColumnLayout {
                 anchors.fill: parent
@@ -144,9 +153,23 @@ ApplicationWindow {
                         font.pixelSize: 15
                         checkable: true
                         background: Rectangle {
-                            radius: 9
-                            color: window.pageIndex === index ? "#153647" : (parent.hovered ? "#152635" : "#0a1927")
-                            border.color: window.pageIndex === index ? "#58dce9" : "#1c3444"
+                            radius: 10
+                            gradient: Gradient {
+                                GradientStop { position: 0; color: window.pageIndex === index ? "#3b7184" : (parent.hovered ? "#254356" : "#1c3043") }
+                                GradientStop { position: 0.24; color: window.pageIndex === index ? "#183b50" : "#112236" }
+                                GradientStop { position: 1; color: "#081320" }
+                            }
+                            border.width: window.pageIndex === index ? 2 : 1
+                            border.color: window.pageIndex === index ? "#70e3f1" : "#365369"
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.top: parent.top
+                                anchors.bottom: parent.bottom
+                                anchors.margins: 7
+                                width: window.pageIndex === index ? 3 : 1
+                                color: window.pageIndex === index ? "#77f0ff" : "#42657c"
+                                radius: 2
+                            }
                         }
                         checked: window.pageIndex === index
                         onClicked: window.pageIndex = index
@@ -206,8 +229,14 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: 18
-            color: "#07121e"
-            border.color: "#27556a"
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#1e3748" }
+                GradientStop { position: 0.05; color: "#0e2030" }
+                GradientStop { position: 1; color: "#050b16" }
+            }
+            border.width: 2
+            border.color: "#37677d"
+            Rectangle { anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 17; height: 2; color: "#5bd9e6"; opacity: .48 }
 
             StackLayout {
                 anchors.fill: parent

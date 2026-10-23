@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import secrets
 import shutil
 import subprocess
@@ -64,6 +65,9 @@ class BroadcastService:
         self._bytes_sent = 0
         self._chunks_sent = 0
         self._last_error = ""
+        self._send_queue = queue.Queue(maxsize=128)
+        self._sender = None
+        self._dropped_chunks = 0
 
     @property
     def live(self) -> bool:
@@ -81,6 +85,8 @@ class BroadcastService:
                 "live": self._live,
                 "bytes_sent": self._bytes_sent,
                 "chunks_sent": self._chunks_sent,
+                "queue_depth": self._send_queue.qsize(),
+                "dropped_chunks": self._dropped_chunks,
                 "player_url": self.player_url,
                 "last_error": self._last_error,
             }
@@ -188,31 +194,52 @@ class BroadcastService:
             self._bytes_sent = 0
             self._chunks_sent = 0
             self._last_error = ""
+            self._dropped_chunks = 0
+            self._send_queue = queue.Queue(maxsize=128)
+            self._sender = threading.Thread(target=self._send_loop, args=(ws,), daemon=True, name="BCI-StreamPublisher")
+            self._sender.start()
         return self.player_url
+
+    def _send_loop(self, ws) -> None:
+        """Network transmission runs outside the capture callback."""
+        while True:
+            with self._lock:
+                if not self._live or self._socket is not ws:
+                    return
+            try:
+                pcm = self._send_queue.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            try:
+                ws.send(pcm)
+                with self._lock:
+                    self._bytes_sent += len(pcm)
+                    self._chunks_sent += 1
+            except Exception as exc:
+                with self._lock:
+                    self._last_error = str(exc)
+                self.stop()
+                return
+            finally:
+                self._send_queue.task_done()
 
     def publish(self, samples: np.ndarray, sample_rate: int) -> None:
         with self._lock:
-            if not self._live or self._socket is None:
+            if not self._live:
                 return
-            ws = self._socket
             configured_rate = self._sample_rate
-
         if int(sample_rate) != configured_rate:
+            with self._lock:
+                self._last_error = "capture sample rate changed"
             self.stop()
-            raise RuntimeError("Go Live stopped because the capture sample rate changed")
-
+            return
         x = np.asarray(samples, dtype=np.float32).reshape(-1)
         pcm = (np.clip(x, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
         try:
-            ws.send(pcm)
+            self._send_queue.put_nowait(pcm)
+        except queue.Full:
             with self._lock:
-                self._bytes_sent += len(pcm)
-                self._chunks_sent += 1
-        except Exception as exc:
-            with self._lock:
-                self._last_error = str(exc)
-            self.stop()
-            raise
+                self._dropped_chunks += 1
 
     def stop(self) -> None:
         with self._lock:

@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Podcast Lab | Studio Baseline 59.0
+// BCIWhisper Podcast Lab | Studio Transport 59.1
 // Developer Seal: CJB-DEV-2026
 // File SHA-256: generated in packaged release manifest
 import QtQuick
@@ -42,10 +42,30 @@ Item {
                 onClicked: bci.recalibrateBaseline()
             }
         }
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+            Button {
+                text: bci.podcastRecording ? "● RECORDING" : "● RECORD"
+                enabled: !bci.recording && bci.sampleRate > 0
+                onClicked: bci.startPodcastRecording()
+            }
+            Button {
+                text: "■ STOP & SAVE"
+                enabled: bci.podcastRecording
+                onClicked: bci.stopPodcastRecording()
+            }
+            Label {
+                text: bci.podcastRecording ? "PODCAST TAKE IN PROGRESS" : "TRANSPORT READY"
+                font.family: "JetBrains Mono"
+                color: bci.podcastRecording ? "#ff767f" : "#78e5c5"
+            }
+            Item { Layout.fillWidth: true }
+        }
         Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: "Multitrack timeline, mixer and episode transport are scheduled for later 59.x builds. No simulated recording controls are shown."
+            text: "Manual podcast takes save raw and isolated WAV recordings. Independent microphone tracks and timeline editing remain future milestones."
             color: "#71838b"; font.family: "Rajdhani"
         }
     }

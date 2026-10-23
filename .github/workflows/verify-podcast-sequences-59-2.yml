@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
       - run: |
           sudo apt-get update
-          sudo apt-get install -y libportaudio2
+          sudo apt-get install -y libportaudio2 libegl1 libgl1 libxcb-cursor0 libxkbcommon-x11-0
           python -m pip install -r requirements-qml-desktop.txt
       - name: Compile source modules
         run: python -m compileall -q bciwhisper bci_audio bci_core tests
@@ -32,6 +32,11 @@ jobs:
         run: python -m unittest discover -s tests -p "test_podcast_59_2.py" -v
       - name: Stage 2 program-bus sequences
         run: python -m unittest discover -s tests -p "test_program_bus_59_3.py" -v
+      - name: Stage 1 QML smoke (offscreen)
+        env:
+          QT_QPA_PLATFORM: offscreen
+          BCI_QML_SMOKE_TEST: "1"
+        run: python -m bciwhisper.ui_qml.main
       - name: Integrity record
         if: always()
         run: |

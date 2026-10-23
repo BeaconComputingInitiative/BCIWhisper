@@ -163,6 +163,29 @@ class BCIWhisperBridge(QtCore.QObject):
         return bool(self._value("baseline_complete", False))
 
     @QtCore.Property(bool, notify=runtimeChanged)
+    def podcastRecording(self) -> bool:
+        return bool(self._value("manual_recording", False))
+
+    @QtCore.Slot()
+    def startPodcastRecording(self) -> None:
+        try:
+            self._runtime.start_podcast_recording()
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot()
+    def stopPodcastRecording(self) -> None:
+        try:
+            self._runtime.stop_podcast_recording()
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+            self.refreshRecordings()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
     def recording(self) -> bool:
         return bool(self._value("recording", False))
 

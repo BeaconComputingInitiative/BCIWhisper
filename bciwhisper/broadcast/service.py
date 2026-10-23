@@ -152,7 +152,6 @@ class BroadcastService:
                 "Render publisher credential missing. Set BCI_PUBLISHER_TOKEN or "
                 "create ~/.config/BCIWhisper/publisher.token with mode 0600."
             )
-        self.publisher_token = _publisher_credential() or self.publisher_token
         self._start_local_gateway()
 
         base = self.gateway_url or f"ws://{self.host}:{self.port}"
@@ -196,18 +195,18 @@ class BroadcastService:
             self._last_error = ""
             self._dropped_chunks = 0
             self._send_queue = queue.Queue(maxsize=128)
-            self._sender = threading.Thread(target=self._send_loop, args=(ws,), daemon=True, name="BCI-StreamPublisher")
+            self._sender = threading.Thread(target=self._send_loop, args=(ws, self._send_queue), daemon=True, name="BCI-StreamPublisher")
             self._sender.start()
         return self.player_url
 
-    def _send_loop(self, ws) -> None:
+    def _send_loop(self, ws, send_queue) -> None:
         """Network transmission runs outside the capture callback."""
         while True:
             with self._lock:
                 if not self._live or self._socket is not ws:
                     return
             try:
-                pcm = self._send_queue.get(timeout=0.2)
+                pcm = send_queue.get(timeout=0.2)
             except queue.Empty:
                 continue
             try:
@@ -218,10 +217,18 @@ class BroadcastService:
             except Exception as exc:
                 with self._lock:
                     self._last_error = str(exc)
-                self.stop()
+                with self._lock:
+                    if self._socket is ws:
+                        self._socket = None
+                        self._live = False
+                        self._sample_rate = 0
+                try:
+                    ws.close()
+                except Exception:
+                    pass
                 return
             finally:
-                self._send_queue.task_done()
+                send_queue.task_done()
 
     def publish(self, samples: np.ndarray, sample_rate: int) -> None:
         with self._lock:
@@ -231,7 +238,7 @@ class BroadcastService:
         if int(sample_rate) != configured_rate:
             with self._lock:
                 self._last_error = "capture sample rate changed"
-            self.stop()
+                self._live = False
             return
         x = np.asarray(samples, dtype=np.float32).reshape(-1)
         pcm = (np.clip(x, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()

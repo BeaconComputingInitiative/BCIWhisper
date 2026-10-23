@@ -5,12 +5,7 @@
 name: BCIWhisper 58.3 Complete Refactor Acceptance
 
 on:
-  pull_request:
-    branches: [master]
-  push:
-    branches:
-      - master
-      - script58.3-full-feature-runtime
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -273,7 +268,7 @@ jobs:
   release:
     name: Publish 58.3 complete refactor preview
     needs: test-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: false # Legacy release pipeline disabled; use consolidated five-revision release workflow
     runs-on: ubuntu-24.04
 
     steps:

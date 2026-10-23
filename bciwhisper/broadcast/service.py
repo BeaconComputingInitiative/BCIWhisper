@@ -67,6 +67,7 @@ class BroadcastService:
         self._last_error = ""
         self._send_queue = queue.Queue(maxsize=128)
         self._sender = None
+        self._stop_requested = threading.Event()
         self._dropped_chunks = 0
 
     @property
@@ -195,6 +196,7 @@ class BroadcastService:
             self._last_error = ""
             self._dropped_chunks = 0
             self._send_queue = queue.Queue(maxsize=128)
+            self._stop_requested.clear()
             self._sender = threading.Thread(target=self._send_loop, args=(ws, self._send_queue), daemon=True, name="BCI-StreamPublisher")
             self._sender.start()
         return self.player_url
@@ -204,7 +206,7 @@ class BroadcastService:
         while True:
             with self._lock:
                 if not self._live or self._socket is not ws:
-                    return
+                    break
             try:
                 pcm = send_queue.get(timeout=0.2)
             except queue.Empty:
@@ -217,18 +219,17 @@ class BroadcastService:
             except Exception as exc:
                 with self._lock:
                     self._last_error = str(exc)
-                with self._lock:
                     if self._socket is ws:
                         self._socket = None
                         self._live = False
                         self._sample_rate = 0
-                try:
-                    ws.close()
-                except Exception:
-                    pass
-                return
+                break
             finally:
                 send_queue.task_done()
+        try:
+            ws.close()
+        except Exception:
+            pass
 
     def publish(self, samples: np.ndarray, sample_rate: int) -> None:
         with self._lock:

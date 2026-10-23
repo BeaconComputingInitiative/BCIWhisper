@@ -73,6 +73,14 @@ Item {
                 color: bci.baselineComplete ? "#78e5c5" : "#d6e1e5"
             }
 
+            Button {
+                text: "RECALIBRATE"
+                enabled: bci.sampleRate > 0 && !bci.recording && !bci.goLive
+                onClicked: bci.recalibrateBaseline()
+                ToolTip.visible: hovered
+                ToolTip.text: "Capture a fresh 60-second room-noise baseline"
+            }
+
             Label {
                 text: bci.recording ? "● RECORDING" : "MONITORING"
                 font.family: "JetBrains Mono"

@@ -219,6 +219,24 @@ jobs:
           grep -F "loaded=True" qml-package-smoke.log
           grep -F "self_test=PASS" qml-package-smoke.log
 
+      - name: Frozen multiprocessing must not launch duplicate GUI windows
+        env:
+          QT_QPA_PLATFORM: offscreen
+          BCI_GATEWAY_URL: "wss://example.invalid"
+        run: |
+          set -euo pipefail
+          set +e
+          timeout --signal=TERM --kill-after=2s 8s ./dist/BCIWhisper-60.0/BCIWhisper-60.0 > frozen-spawn-smoke.log 2>&1
+          rc=$?
+          set -e
+          cat frozen-spawn-smoke.log
+          if [ "$rc" -ne 124 ] && [ "$rc" -ne 0 ]; then
+            echo "Frozen runtime unexpectedly failed with $rc"
+            exit 1
+          fi
+          count=$(grep -c '\[BCIWhisper\]\[QML\] ROOT_READY' frozen-spawn-smoke.log || true)
+          test "$count" -eq 1
+
       - name: Confirm package excludes PyQt and monolith
         run: |
           test ! -e dist/BCIWhisper-60.0/_internal/PyQt6

@@ -1,12 +1,12 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
+# BCIWhisper Script 58.4 | Engineering Build 2026.10.23-r6.35.4
 # Developer Seal: CJB-DEV-2026
 
 PROJECT_NAME = "BCIWhisper"
 PROJECT_VERSION = "v6.0"
 SCRIPT_TALLY = 58
-SCRIPT_REVISION = "58.3"
-BUILD = "2026.10.23-r6.35.3"
-ARCHITECTURE_EPOCH = "script58.3-complete-modular-runtime"
+SCRIPT_REVISION = "58.4"
+BUILD = "2026.10.23-r6.35.4"
+ARCHITECTURE_EPOCH = "script58.4-complete-modular-runtime"
 DEVELOPER_SEAL = "CJB-DEV-2026"
 LEAD_DEVELOPER = "Chance Joaquin Boone"

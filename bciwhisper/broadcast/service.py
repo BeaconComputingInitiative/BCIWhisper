@@ -19,6 +19,23 @@ from websockets.sync.client import connect
 from bciwhisper.broadcast.protocol import PROTOCOL, DEFAULT_STREAM_ID, publisher_hello
 from bciwhisper.config.paths import GATEWAY_DATA_DIR, GATEWAY_ENTRYPOINT, GATEWAY_ROOT
 
+RENDER_GATEWAY = "wss://bciwhisper-live.onrender.com"
+RENDER_PUBLIC_BASE = "https://bciwhisper-live.onrender.com"
+
+
+def _publisher_credential() -> str:
+    """Environment takes precedence over a private local user credential file."""
+    token = os.environ.get("BCI_PUBLISHER_TOKEN", "").strip()
+    if token:
+        return token
+    path = Path.home() / ".config" / "BCIWhisper" / "publisher.token"
+    if not path.is_file():
+        return ""
+    if path.stat().st_mode & 0o077:
+        raise PermissionError("BCI publisher token file must be private (chmod 600)")
+    return path.read_text(encoding="utf-8").strip()
+
+
 
 class BroadcastService:
     """Qt-independent Go Live publisher + optional local Bun gateway owner."""
@@ -27,15 +44,17 @@ class BroadcastService:
         self.host = os.environ.get("BCI_GATEWAY_HOST", "127.0.0.1")
         self.port = int(os.environ.get("BCI_GATEWAY_PORT", "8766"))
         self.stream_id = os.environ.get("BCI_STREAM_ID", DEFAULT_STREAM_ID)
-        self.publisher_token = os.environ.get("BCI_PUBLISHER_TOKEN", "") or secrets.token_urlsafe(32)
+        self.gateway_url = os.environ.get("BCI_GATEWAY_URL", RENDER_GATEWAY).strip().rstrip("/")
+        self.publisher_token = _publisher_credential()
+        if not self.gateway_url and not self.publisher_token:
+            self.publisher_token = secrets.token_urlsafe(32)
         self.admin_token = os.environ.get("BCI_ADMIN_TOKEN", "") or secrets.token_urlsafe(32)
         if self.admin_token == self.publisher_token:
             self.admin_token = secrets.token_urlsafe(32)
 
-        self.gateway_url = os.environ.get("BCI_GATEWAY_URL", "").strip().rstrip("/")
         self.public_base = os.environ.get(
             "BCI_PUBLIC_BASE_URL",
-            f"http://{self.host}:{self.port}",
+            RENDER_PUBLIC_BASE if self.gateway_url else f"http://{self.host}:{self.port}",
         ).rstrip("/")
         self._gateway: subprocess.Popen | None = None
         self._socket = None
@@ -121,6 +140,11 @@ class BroadcastService:
             if self._live:
                 return self.player_url
 
+        if self.gateway_url and not self.publisher_token:
+            raise RuntimeError(
+                "Render publisher credential missing. Set BCI_PUBLISHER_TOKEN or "
+                "create ~/.config/BCIWhisper/publisher.token with mode 0600."
+            )
         self._start_local_gateway()
 
         base = self.gateway_url or f"ws://{self.host}:{self.port}"

@@ -6,8 +6,6 @@ name: BCIWhisper 59.4 Acceptance Package (Unpublished)
 
 on:
   workflow_dispatch:
-  push:
-    branches: [master]
 
 permissions:
   contents: read

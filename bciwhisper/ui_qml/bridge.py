@@ -240,6 +240,15 @@ class BCIWhisperBridge(QtCore.QObject):
         self._started = True
 
     @QtCore.Slot()
+    def recalibrateBaseline(self) -> None:
+        try:
+            self._runtime.recalibrate_baseline()
+            self._snapshot = self._runtime.snapshot()
+            self.runtimeChanged.emit()
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot()
     def refreshDevices(self) -> None:
         self._runtime.refresh_devices()
 

@@ -1,5 +1,5 @@
 // BEACON COMPUTING INITIATIVE
-// BCIWhisper Podcast Lab | Dual-Microphone 59.6
+// BCIWhisper Podcast Lab | Spatial Studio 60.0
 // Developer Seal: CJB-DEV-2026
 // File SHA-256: generated in packaged release manifest
 import QtQuick
@@ -12,11 +12,11 @@ Item {
         anchors.fill: parent
         spacing: 12
         Label {
-            text: "PODCAST LAB  /  STUDIO"
+            text: "STUDIO  //  CONTROL DECK"
             font.family: "Oxanium"; font.pixelSize: 24; color: "#5fe7ef"
         }
         Label {
-            text: "Studio foundation · existing capture, calibration and broadcasting services"
+            text: "NEURAL SIGNAL CHAMBER     •     DUAL INPUT CAPTURE     •     DIRECT BROADCAST"
             font.family: "Rajdhani"; color: "#9db0b8"
         }
         RowLayout {
@@ -28,8 +28,8 @@ Item {
         }
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
-            radius: 12; color: "#080d12"; border.color: "#23323a"
-            SpectrumView { anchors.fill: parent; anchors.margins: 14 }
+            radius: 18; color: "#07131d"; border.color: "#2b6572"
+            SpatialChamber { anchors.fill: parent; anchors.margins: 3 }
         }
         RowLayout {
             Layout.fillWidth: true
@@ -127,7 +127,7 @@ Item {
         Label {
             Layout.fillWidth: true
             wrapMode: Text.WordWrap
-            text: "Manual podcast takes save raw and isolated WAV recordings. Independent microphone tracks and timeline editing remain future milestones."
+            text: "Manual podcast takes save raw and isolated WAV recordings. Two microphone tracks and timeline metadata are available; drift correction and audio edit rendering remain under development."
             color: "#71838b"; font.family: "Rajdhani"
         }
     }

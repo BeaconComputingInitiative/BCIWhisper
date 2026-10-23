@@ -1,80 +1,68 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
+# BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
 # Developer Seal: CJB-DEV-2026
 
 from __future__ import annotations
 
-from pathlib import Path
+import threading
 
 from PySide6 import QtCore
 
+from bciwhisper.app import ApplicationRuntime
 from bciwhisper.services.native_dsp import NativeDSPService
-from bciwhisper.services.transcription import TranscriptionService
 from bciwhisper.version import BUILD, PROJECT_VERSION, SCRIPT_REVISION
 
 
-class _TaskSignals(QtCore.QObject):
-    finished = QtCore.Signal(object)
-    failed = QtCore.Signal(str)
-
-
-class _TranscriptionTask(QtCore.QRunnable):
-    def __init__(self, service: TranscriptionService, path: Path) -> None:
-        super().__init__()
-        self.service = service
-        self.path = path
-        self.signals = _TaskSignals()
-
-    @QtCore.Slot()
-    def run(self) -> None:
-        try:
-            self.signals.finished.emit(self.service.transcribe(self.path))
-        except Exception as exc:
-            self.signals.failed.emit(str(exc))
-
-
 class BCIWhisperBridge(QtCore.QObject):
-    """Stable QML-facing facade.
-
-    QML talks only to this bridge. The bridge delegates domain work to services;
-    it never owns microphones, PortAudio, DSP implementation state, SQLite,
-    Whisper model internals, or the broadcast process.
-    """
-
-    identityChanged = QtCore.Signal()
-    transcriptionChanged = QtCore.Signal()
+    runtimeChanged = QtCore.Signal()
+    recordingsChanged = QtCore.Signal()
+    telemetryChanged = QtCore.Signal()
     transcriptChanged = QtCore.Signal()
     nativeChanged = QtCore.Signal()
+    transcriptionResultReady = QtCore.Signal(object)
 
     def __init__(self, parent: QtCore.QObject | None = None) -> None:
         super().__init__(parent)
-        self._transcription = TranscriptionService()
+        self._runtime = ApplicationRuntime()
         self._native = NativeDSPService()
-        self._pool = QtCore.QThreadPool.globalInstance()
-
-        self._busy = False
-        self._progress = 0
-        self._status = self._initial_status()
+        self._snapshot = self._runtime.snapshot()
+        self._recordings: list[dict] = []
+        self._telemetry: list[dict] = []
         self._transcript_text = ""
-        self._transcript_path = ""
-        self._error_text = ""
+        self._transcript_status = "IDLE"
+        self._transcript_backend = ""
+        self._transcript_model = ""
+        self._started = False
+        self._shutting_down = False
 
         self._native_self_test = "NOT_RUN"
         self._native_metrics = ""
+        self.transcriptionResultReady.connect(self._apply_transcription_result)
         self.runNativeSelfTest()
 
-    def _initial_status(self) -> str:
-        return "READY" if self._transcription.available else "UNAVAILABLE"
+        self._timer = QtCore.QTimer(self)
+        self._timer.setInterval(50)
+        self._timer.timeout.connect(self._poll_runtime)
+        self._timer.start()
 
-    @QtCore.Property(str, notify=identityChanged)
+        self._slow_timer = QtCore.QTimer(self)
+        self._slow_timer.setInterval(1000)
+        self._slow_timer.timeout.connect(self._poll_slow)
+        self._slow_timer.start()
+
+    # ------------------------------------------------------------------
+    # Identity / architecture
+    # ------------------------------------------------------------------
+
+    @QtCore.Property(str, constant=True)
     def projectVersion(self) -> str:
         return PROJECT_VERSION
 
-    @QtCore.Property(str, notify=identityChanged)
+    @QtCore.Property(str, constant=True)
     def scriptRevision(self) -> str:
         return SCRIPT_REVISION
 
-    @QtCore.Property(str, notify=identityChanged)
+    @QtCore.Property(str, constant=True)
     def engineeringBuild(self) -> str:
         return BUILD
 
@@ -94,11 +82,6 @@ class BCIWhisperBridge(QtCore.QObject):
     def nativeMetrics(self) -> str:
         return self._native_metrics
 
-    @QtCore.Property(str, notify=nativeChanged)
-    def architectureSummary(self) -> str:
-        native = "C++20 ACTIVE" if self._native.native_loaded else "NUMPY FALLBACK"
-        return f"QML / Qt Quick → Python services → {native}"
-
     @QtCore.Slot()
     def runNativeSelfTest(self) -> None:
         try:
@@ -114,94 +97,242 @@ class BCIWhisperBridge(QtCore.QObject):
             self._native_metrics = str(exc)
         self.nativeChanged.emit()
 
-    @QtCore.Property(str, notify=transcriptionChanged)
-    def transcriptionBackend(self) -> str:
-        return self._transcription.backend_name or "none"
+    # ------------------------------------------------------------------
+    # Runtime properties
+    # ------------------------------------------------------------------
 
-    @QtCore.Property(str, notify=transcriptionChanged)
-    def transcriptionModel(self) -> str:
-        return self._transcription.model_name or "not configured"
+    def _value(self, key: str, default=None):
+        return self._snapshot.get(key, default)
 
-    @QtCore.Property(str, notify=transcriptionChanged)
-    def transcriptionStatus(self) -> str:
-        return self._status
+    @QtCore.Property(str, notify=runtimeChanged)
+    def phase(self) -> str:
+        return str(self._value("phase", "starting"))
 
-    @QtCore.Property(bool, notify=transcriptionChanged)
-    def transcriptionAvailable(self) -> bool:
-        return self._transcription.available
+    @QtCore.Property(str, notify=runtimeChanged)
+    def phaseReason(self) -> str:
+        return str(self._value("phase_reason", ""))
 
-    @QtCore.Property(bool, notify=transcriptionChanged)
-    def transcriptionBusy(self) -> bool:
-        return self._busy
+    @QtCore.Property(str, notify=runtimeChanged)
+    def deviceName(self) -> str:
+        return str(self._value("device_name", ""))
 
-    @QtCore.Property(int, notify=transcriptionChanged)
-    def transcriptionProgress(self) -> int:
-        return self._progress
+    @QtCore.Property(int, notify=runtimeChanged)
+    def deviceId(self) -> int:
+        return int(self._value("device_id", -1))
+
+    @QtCore.Property(int, notify=runtimeChanged)
+    def sampleRate(self) -> int:
+        return int(self._value("sample_rate", 0))
+
+    @QtCore.Property(int, notify=runtimeChanged)
+    def audioProcessPid(self) -> int:
+        return int(self._value("audio_pid", 0))
+
+    @QtCore.Property(float, notify=runtimeChanged)
+    def rms(self) -> float:
+        return float(self._value("rms", 0.0))
+
+    @QtCore.Property(float, notify=runtimeChanged)
+    def peak(self) -> float:
+        return float(self._value("peak", 0.0))
+
+    @QtCore.Property(float, notify=runtimeChanged)
+    def peakFrequency(self) -> float:
+        return float(self._value("peak_freq", 0.0))
+
+    @QtCore.Property(float, notify=runtimeChanged)
+    def noiseFloorDb(self) -> float:
+        return float(self._value("noise_floor_db", -120.0))
+
+    @QtCore.Property(float, notify=runtimeChanged)
+    def snrDb(self) -> float:
+        return float(self._value("snr_db", 0.0))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def signalActive(self) -> bool:
+        return bool(self._value("active", False))
+
+    @QtCore.Property(float, notify=runtimeChanged)
+    def baselineProgress(self) -> float:
+        return float(self._value("baseline_progress", 0.0))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def baselineComplete(self) -> bool:
+        return bool(self._value("baseline_complete", False))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def recording(self) -> bool:
+        return bool(self._value("recording", False))
+
+    @QtCore.Property(bool, notify=runtimeChanged)
+    def goLive(self) -> bool:
+        return bool(self._value("go_live", False))
+
+    @QtCore.Property(str, notify=runtimeChanged)
+    def playerUrl(self) -> str:
+        return str(self._value("player_url", ""))
+
+    @QtCore.Property(str, notify=runtimeChanged)
+    def lastError(self) -> str:
+        return str(self._value("last_error", ""))
+
+    @QtCore.Property(list, notify=runtimeChanged)
+    def devices(self):
+        rows = []
+        for index, item in enumerate(self._value("devices", []) or []):
+            try:
+                channels = int(item.get("max_input_channels", 0) or 0)
+            except Exception:
+                channels = 0
+            if channels <= 0:
+                continue
+            rows.append(
+                {
+                    "id": index,
+                    "name": str(item.get("name", f"Device {index}")),
+                    "sampleRate": int(float(item.get("default_samplerate", 0) or 0)),
+                    "channels": channels,
+                }
+            )
+        return rows
+
+    @QtCore.Property(list, notify=runtimeChanged)
+    def spectrumDb(self):
+        return list(self._value("spectrum_db", []) or [])
+
+    @QtCore.Property(list, notify=runtimeChanged)
+    def spectrumHz(self):
+        return list(self._value("spectrum_hz", []) or [])
+
+    @QtCore.Property(list, notify=recordingsChanged)
+    def recordings(self):
+        return list(self._recordings)
+
+    @QtCore.Property(list, notify=telemetryChanged)
+    def telemetryEvents(self):
+        return list(self._telemetry)
 
     @QtCore.Property(str, notify=transcriptChanged)
     def transcriptText(self) -> str:
         return self._transcript_text
 
     @QtCore.Property(str, notify=transcriptChanged)
-    def transcriptPath(self) -> str:
-        return self._transcript_path
+    def transcriptStatus(self) -> str:
+        return self._transcript_status
 
     @QtCore.Property(str, notify=transcriptChanged)
-    def errorText(self) -> str:
-        return self._error_text
+    def transcriptBackend(self) -> str:
+        return self._transcript_backend
+
+    @QtCore.Property(str, notify=transcriptChanged)
+    def transcriptModel(self) -> str:
+        return self._transcript_model
+
+    # ------------------------------------------------------------------
+    # Commands
+    # ------------------------------------------------------------------
 
     @QtCore.Slot()
-    def refreshTranscriptionBackend(self) -> None:
-        if self._busy:
+    def startRuntime(self) -> None:
+        if self._started:
             return
-        self._transcription.discover()
-        self._status = self._initial_status()
-        self._error_text = "; ".join(self._transcription.last_errors)
-        self.transcriptionChanged.emit()
-        self.transcriptChanged.emit()
+        self._runtime.start()
+        self._started = True
+
+    @QtCore.Slot()
+    def refreshDevices(self) -> None:
+        self._runtime.refresh_devices()
+
+    @QtCore.Slot(int, str, str)
+    def selectDevice(self, device_id: int, device_name: str, mode: str) -> None:
+        self._runtime.select_device(device_id, device_name, mode)
+
+    @QtCore.Slot(float, float, float, float)
+    def configureAudio(self, lowcut: float, highcut: float, gain: float, sensitivity: float) -> None:
+        self._runtime.configure_audio(
+            lowcut=lowcut,
+            highcut=highcut,
+            gain=gain,
+            sensitivity=sensitivity,
+        )
+
+    @QtCore.Slot()
+    def refreshRecordings(self) -> None:
+        self._recordings = self._runtime.recordings()
+        self.recordingsChanged.emit()
 
     @QtCore.Slot(str)
-    def transcribeFile(self, file_url: str) -> None:
-        if self._busy:
-            return
+    def playRecording(self, path: str) -> None:
+        try:
+            self._runtime.play(path)
+        except Exception as exc:
+            self._set_local_error(str(exc))
 
-        url = QtCore.QUrl(file_url)
-        path = Path(url.toLocalFile() if url.isLocalFile() else file_url).expanduser()
-        if not path.is_file():
-            self._error_text = f"Audio file not found: {path}"
-            self._status = "ERROR"
-            self.transcriptChanged.emit()
-            self.transcriptionChanged.emit()
-            return
+    @QtCore.Slot()
+    def stopPlayback(self) -> None:
+        self._runtime.stop_playback()
 
-        self._busy = True
-        self._progress = 5
-        self._status = "TRANSCRIBING"
-        self._error_text = ""
-        self.transcriptionChanged.emit()
-        self.transcriptChanged.emit()
-
-        task = _TranscriptionTask(self._transcription, path)
-        task.signals.finished.connect(self._on_transcription_finished)
-        task.signals.failed.connect(self._on_transcription_failed)
-        self._pool.start(task)
-
-    @QtCore.Slot(object)
-    def _on_transcription_finished(self, result: object) -> None:
-        self._busy = False
-        self._progress = 100
-        self._status = "READY"
-        self._transcript_text = str(getattr(result, "text", ""))
-        self._transcript_path = str(getattr(result, "audio_path", ""))
-        self._error_text = ""
-        self.transcriptionChanged.emit()
-        self.transcriptChanged.emit()
+    @QtCore.Slot(str, str)
+    def reconstruct(self, raw_path: str, isolated_path: str) -> None:
+        self._runtime.reconstruct(raw_path, isolated_path)
 
     @QtCore.Slot(str)
-    def _on_transcription_failed(self, message: str) -> None:
-        self._busy = False
-        self._progress = 0
-        self._status = "ERROR"
-        self._error_text = message
-        self.transcriptionChanged.emit()
+    def master(self, path: str) -> None:
+        self._runtime.master(path)
+
+    @QtCore.Slot(str)
+    def transcribe(self, path: str) -> None:
+        self._transcript_status = "TRANSCRIBING"
+        self._transcript_text = ""
         self.transcriptChanged.emit()
+
+        def completed(result: dict) -> None:
+            self.transcriptionResultReady.emit(dict(result))
+
+        self._runtime.transcribe(path, completed)
+
+    def _apply_transcription_result(self, result: dict) -> None:
+        if result.get("ok"):
+            self._transcript_status = "READY"
+            self._transcript_text = str(result.get("text", ""))
+            self._transcript_backend = str(result.get("backend", ""))
+            self._transcript_model = str(result.get("model", ""))
+        else:
+            self._transcript_status = "ERROR"
+            self._transcript_text = str(result.get("error", "transcription failed"))
+        self.transcriptChanged.emit()
+
+    @QtCore.Slot(bool)
+    def setGoLive(self, enabled: bool) -> None:
+        try:
+            self._runtime.set_go_live(bool(enabled))
+        except Exception as exc:
+            self._set_local_error(str(exc))
+
+    @QtCore.Slot()
+    def refreshTelemetry(self) -> None:
+        self._telemetry = self._runtime.recent_telemetry(100)
+        self.telemetryChanged.emit()
+
+    @QtCore.Slot()
+    def shutdown(self) -> None:
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        self._timer.stop()
+        self._slow_timer.stop()
+        if self._started:
+            self._runtime.stop()
+            self._started = False
+
+    def _poll_runtime(self) -> None:
+        self._snapshot = self._runtime.snapshot()
+        self.runtimeChanged.emit()
+
+    def _poll_slow(self) -> None:
+        self.refreshRecordings()
+        self.refreshTelemetry()
+
+    def _set_local_error(self, message: str) -> None:
+        self._snapshot["last_error"] = str(message)
+        self.runtimeChanged.emit()

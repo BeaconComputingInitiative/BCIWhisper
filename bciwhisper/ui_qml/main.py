@@ -1,5 +1,5 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
+# BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
 # Developer Seal: CJB-DEV-2026
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ def main() -> int:
 
     engine = QtQml.QQmlApplicationEngine()
     bridge = BCIWhisperBridge(app)
+    app.aboutToQuit.connect(bridge.shutdown)
     engine.rootContext().setContextProperty("bci", bridge)
 
     qml_path = _qml_main_path()
@@ -46,18 +47,14 @@ def main() -> int:
         "[BCIWhisper][NATIVE] "
         f"loaded={bridge.nativeLoaded} "
         f"backend={bridge.nativeBackend} "
-        f"self_test={bridge.nativeSelfTest} "
-        f"metrics={bridge.nativeMetrics}"
-    )
-    print(
-        "[BCIWhisper][TRANSCRIPTION] "
-        f"state={bridge.transcriptionStatus} "
-        f"backend={bridge.transcriptionBackend} "
-        f"model={bridge.transcriptionModel}"
+        f"self_test={bridge.nativeSelfTest}"
     )
 
-    if os.environ.get("BCI_QML_SMOKE_TEST", "").strip() == "1":
+    smoke = os.environ.get("BCI_QML_SMOKE_TEST", "").strip() == "1"
+    if smoke:
         QtCore.QTimer.singleShot(250, app.quit)
+    else:
+        QtCore.QTimer.singleShot(0, bridge.startRuntime)
 
     return app.exec()
 

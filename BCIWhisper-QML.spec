@@ -1,19 +1,23 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
+# BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
 # Developer Seal: CJB-DEV-2026
 
 # -*- mode: python ; coding: utf-8 -*-
 
 from PyInstaller.utils.hooks import collect_all, collect_dynamic_libs
 
-
 datas = [
     ("bciwhisper/ui_qml/qml", "bciwhisper/ui_qml/qml"),
     ("assets/bciwhisper.png", "assets"),
+    ("services/broadcast-gateway", "services/broadcast-gateway"),
 ]
+
 binaries = []
 hiddenimports = [
+    "bci_audio.boundary",
+    "bci_core.state",
     "bciwhisper.native._bci_native",
+    "websockets.sync.client",
 ]
 
 for package in (
@@ -22,6 +26,7 @@ for package in (
     "av",
     "tokenizers",
     "huggingface_hub",
+    "websockets",
 ):
     package_datas, package_binaries, package_hidden = collect_all(package)
     datas += package_datas
@@ -39,7 +44,12 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["PyQt5", "PyQt6", "torch", "tensorflow"],
+    excludes=[
+        "PyQt5",
+        "PyQt6",
+        "torch",
+        "tensorflow",
+    ],
     noarchive=False,
 )
 
@@ -50,7 +60,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="BCIWhisper-58.2-QML",
+    name="BCIWhisper-58.3",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -65,5 +75,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="BCIWhisper-58.2-QML",
+    name="BCIWhisper-58.3",
 )

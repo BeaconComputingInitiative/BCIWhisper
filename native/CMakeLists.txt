@@ -1,5 +1,5 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 58.2 | Engineering Build 2026.10.22-r6.35.2
+# BCIWhisper Script 58.3 | Engineering Build 2026.10.23-r6.35.3
 # Developer Seal: CJB-DEV-2026
 
 cmake_minimum_required(VERSION 3.20)
@@ -22,7 +22,7 @@ target_include_directories(_bci_native
 
 target_compile_definitions(_bci_native
     PRIVATE
-        BCIWHISPER_NATIVE_VERSION="58.2"
+        BCIWHISPER_NATIVE_VERSION="58.3"
 )
 
 if (MSVC)

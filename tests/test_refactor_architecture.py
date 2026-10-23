@@ -3,10 +3,22 @@
 
 from __future__ import annotations
 
+import ast
 import pathlib
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+
+
+def imported_modules(path: pathlib.Path) -> list[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8", errors="replace"), filename=str(path))
+    modules: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            modules.append(node.module or "")
+    return modules
 
 
 class RefactorArchitectureTests(unittest.TestCase):
@@ -19,17 +31,20 @@ class RefactorArchitectureTests(unittest.TestCase):
         ]
         for package_root in roots:
             for path in package_root.rglob("*.py"):
-                text = path.read_text(encoding="utf-8", errors="replace")
-                if "import BCIWhisper" in text or "from BCIWhisper" in text:
-                    offenders.append(f"{path}: monolith import")
-                if "PyQt5" in text or "PyQt6" in text:
-                    offenders.append(f"{path}: PyQt dependency")
+                for module in imported_modules(path):
+                    top = module.split(".", 1)[0]
+                    if top == "BCIWhisper":
+                        offenders.append(f"{path}: imports monolith {module}")
+                    if top in {"PyQt5", "PyQt6"}:
+                        offenders.append(f"{path}: imports {top}")
         self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_qml_entrypoint_uses_rewritten_runtime(self) -> None:
         text = (ROOT / "bciwhisper/ui_qml/bridge.py").read_text(encoding="utf-8")
         self.assertIn("ApplicationRuntime", text)
-        self.assertNotIn("BCIWhisper.py", text)
+
+        modules = imported_modules(ROOT / "bciwhisper/ui_qml/bridge.py")
+        self.assertNotIn("BCIWhisper", {module.split(".", 1)[0] for module in modules})
 
 
 if __name__ == "__main__":

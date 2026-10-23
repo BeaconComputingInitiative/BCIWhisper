@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 45
 
     env:
-      BCI_DATA_DIR: ${{ runner.temp }}/bciwhisper-data
+      BCI_DATA_DIR: /tmp/bciwhisper-data
       QT_QPA_PLATFORM: offscreen
 
     steps:
@@ -74,7 +74,7 @@ jobs:
 
       - name: Enforce complete-refactor boundary
         run: |
-          python -m unittest tests.test_refactor_architecture -v
+          python -m unittest discover -s tests -p "test_refactor_architecture.py" -v
           ! grep -R --include='*.py' -nE             '(^|[[:space:]])(from|import)[[:space:]]+BCIWhisper|PyQt5|PyQt6'             bciwhisper bci_audio bci_core
 
       - name: Run Python fallback tests
@@ -107,7 +107,7 @@ jobs:
           assert caps["loaded"] is True
           assert caps["language"] == "C++20"
           assert caps["abi"] == 1
-          assert caps["script"] == "58.2"
+          assert caps["script"] == "58.3"
 
           result = NativeDSPService().self_test()
           print(result)

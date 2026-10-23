@@ -16,7 +16,8 @@ Item {
         }
         RowLayout {
             Layout.fillWidth: true
-            TextField { id: sourcePath; Layout.fillWidth: true; placeholderText: "Absolute path to existing mono WAV file" }
+            TextField { id: sourcePath
+                                    Layout.fillWidth: true; placeholderText: "Absolute path to existing mono WAV file" }
             Button { text: "IMPORT WAV"; onClicked: bci.importEpisodeTrack(sourcePath.text) }
         }
         ScrollView {
@@ -38,11 +39,17 @@ Item {
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 8
-                            Label { text: modelData.source; color: "#dae9ed"; elide: Text.ElideLeft; Layout.fillWidth: true }
+                            Label { text: modelData.source; color: "#dae9ed"
+                                elide: Text.ElideLeft
+                                    Layout.fillWidth: true }
                             RowLayout {
-                                TextField { id: startTime; text: modelData["in"].toFixed(2); validator: DoubleValidator { bottom: 0 }; Layout.preferredWidth: 90 }
+                                TextField { id: startTime; text: modelData["in"].toFixed(2)
+                                    validator: DoubleValidator { bottom: 0 }
+                                    Layout.preferredWidth: 90 }
                                 Label { text: "→"; color: "#5fe7ef" }
-                                TextField { id: endTime; text: modelData.out.toFixed(2); validator: DoubleValidator { bottom: 0 }; Layout.preferredWidth: 90 }
+                                TextField { id: endTime; text: modelData.out.toFixed(2)
+                                    validator: DoubleValidator { bottom: 0 }
+                                    Layout.preferredWidth: 90 }
                                 Button { text: "SET TRIM"; onClicked: bci.trimEpisodeTrack(index, Number(startTime.text), Number(endTime.text)) }
                                 Label { text: modelData.rate + " Hz / " + modelData.frames + " frames"; color: "#8b9ca5" }
                             }
@@ -67,13 +74,17 @@ Item {
         }
         RowLayout {
             Layout.fillWidth: true
-            TextField { id: markerSeconds; placeholderText: "Marker seconds"; validator: DoubleValidator { bottom: 0 }; Layout.preferredWidth: 130 }
-            TextField { id: markerText; placeholderText: "Transcript cue or note"; Layout.fillWidth: true }
+            TextField { id: markerSeconds; placeholderText: "Marker seconds"
+                                    validator: DoubleValidator { bottom: 0 }
+                                    Layout.preferredWidth: 130 }
+            TextField { id: markerText; placeholderText: "Transcript cue or note"
+                                    Layout.fillWidth: true }
             Button { text: "ADD CUE"; onClicked: bci.addEpisodeMarker(Number(markerSeconds.text), markerText.text) }
         }
         RowLayout {
             Layout.fillWidth: true
-            TextField { id: projectPath; Layout.fillWidth: true; placeholderText: "Episode .json project path" }
+            TextField { id: projectPath
+                                    Layout.fillWidth: true; placeholderText: "Episode .json project path" }
             Button { text: "SAVE PROJECT"; onClicked: bci.saveEpisode(projectPath.text) }
             Button { text: "OPEN PROJECT"; onClicked: bci.loadEpisode(projectPath.text) }
         }

@@ -28,8 +28,24 @@ Item {
         }
         Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
-            radius: 18; color: "#07131d"; border.color: "#2b6572"
-            SpatialChamber { anchors.fill: parent; anchors.margins: 3 }
+            radius: 22
+            border.width: 2
+            border.color: "#4c8997"
+            gradient: Gradient {
+                GradientStop { position: 0; color: "#244d61" }
+                GradientStop { position: 0.05; color: "#102634" }
+                GradientStop { position: 1; color: "#040915" }
+            }
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 13
+                radius: 15
+                border.color: "#244b5f"
+                border.width: 2
+                color: "#040b15"
+                SpatialChamber { anchors.fill: parent; anchors.margins: 3 }
+            }
+            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 29; height: 2; color: "#7eebf6"; opacity: .5 }
         }
         RowLayout {
             Layout.fillWidth: true

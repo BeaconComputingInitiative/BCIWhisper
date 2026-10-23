@@ -2,7 +2,7 @@
 # Podcast Lab 59.2 automated sequence validation
 # Developer Seal: CJB-DEV-2026
 # SHA-256: calculate on exported evidence
-name: BCIWhisper 59.2 Sequence Tests
+name: BCIWhisper Podcast Five-Stage Verification
 on:
   push:
     branches: [master]
@@ -30,6 +30,8 @@ jobs:
         run: python -m compileall -q bciwhisper bci_audio bci_core tests
       - name: Run podcast sequences
         run: python -m unittest discover -s tests -p "test_podcast_59_2.py" -v
+      - name: Stage 2 program-bus sequences
+        run: python -m unittest discover -s tests -p "test_program_bus_59_3.py" -v
       - name: Integrity record
         if: always()
         run: |

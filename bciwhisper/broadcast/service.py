@@ -140,11 +140,13 @@ class BroadcastService:
             if self._live:
                 return self.player_url
 
+        self.publisher_token = _publisher_credential() or self.publisher_token
         if self.gateway_url and not self.publisher_token:
             raise RuntimeError(
                 "Render publisher credential missing. Set BCI_PUBLISHER_TOKEN or "
                 "create ~/.config/BCIWhisper/publisher.token with mode 0600."
             )
+        self.publisher_token = _publisher_credential() or self.publisher_token
         self._start_local_gateway()
 
         base = self.gateway_url or f"ws://{self.host}:{self.port}"

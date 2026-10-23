@@ -34,6 +34,8 @@ jobs:
         run: python -m unittest discover -s tests -p "test_program_bus_59_3.py" -v
       - name: Stage 3 dual-microphone track alignment
         run: python -m unittest discover -s tests -p "test_multitrack_59_6.py" -v
+      - name: Stage 3 and 60.0 episode timeline checks
+        run: python -m unittest discover -s tests -p "test_episode_timeline_60_0.py" -v
       - name: Stage 1 QML smoke (offscreen)
         env:
           QT_QPA_PLATFORM: offscreen

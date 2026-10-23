@@ -123,6 +123,7 @@ ApplicationWindow {
                 Repeater {
                     model: [
                         "STUDIO",
+                        "TIMELINE",
                         "MONITOR",
                         "RECORDINGS",
                         "TRANSCRIPTS",
@@ -205,6 +206,7 @@ ApplicationWindow {
                 currentIndex: window.pageIndex
 
                 StudioPage {}
+                TimelinePage {}
                 MonitorPage {}
                 RecordingsPage {}
                 TranscriptPage {}

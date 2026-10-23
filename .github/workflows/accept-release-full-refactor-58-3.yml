@@ -8,7 +8,9 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [master]
+    branches:
+      - master
+      - script58.3-full-feature-runtime
 
 permissions:
   contents: write

@@ -53,40 +53,7 @@ Item {
                     emissiveFactor: Qt.vector3d(0.1, 0.22, 0.3)
                 }
             }
-            Repeater3D {
-                model: 36
-                delegate: Model {
-                    required property int index
-                    readonly property real theta: index * Math.PI * 2 / 36
-                    readonly property var bins: bci.spectrumDb
-                    readonly property real db: bins.length ? Number(bins[Math.min(bins.length - 1, Math.floor(index * bins.length / 36))]) : -110
-                    readonly property real energy: Math.max(.05, Math.min(1, (db + 105) / 85))
-                    source: "#Cylinder"
-                    position: Qt.vector3d(Math.cos(theta) * 210, -45 + energy * 45,
-                                          Math.sin(theta) * 210)
-                    scale: Qt.vector3d(.12, .3 + energy * 1.5, .12)
-                    materials: PrincipledMaterial {
-                        baseColor: index % 6 === 0 ? "#ca467d" : "#49d7e8"
-                        metalness: 0.48
-                        roughness: 0.25
-                        emissiveFactor: Qt.vector3d(0.12, 0.3, 0.33)
-                    }
-                }
-            }
-            Repeater3D {
-                model: 3
-                delegate: Model {
-                    required property int index
-                    source: "#Torus"
-                    eulerRotation: Qt.vector3d(65 + index * 12, index * 35, 0)
-                    scale: Qt.vector3d(2.65 + index * .32, 2.65 + index * .32, 2.65 + index * .32)
-                    materials: PrincipledMaterial {
-                        baseColor: index === 1 ? "#ac3a69" : "#2e8a9a"
-                        metalness: .85
-                        roughness: .2
-                    }
-                }
-            }
+
         }
         Model {
             source: "#Cube"

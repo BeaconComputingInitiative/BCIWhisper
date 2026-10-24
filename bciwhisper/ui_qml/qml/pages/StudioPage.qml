@@ -8,6 +8,7 @@ import QtQuick.Layouts
 import "../components"
 
 Item {
+    property bool enableThreeD: true
     ColumnLayout {
         anchors.fill: parent
         spacing: 12
@@ -43,7 +44,35 @@ Item {
                 border.color: "#244b5f"
                 border.width: 2
                 color: "#040b15"
-                SpatialChamber { anchors.fill: parent; anchors.margins: 3 }
+                Loader {
+                    id: spatialRenderer
+                    anchors.fill: parent
+                    anchors.margins: 3
+                    active: true
+                    source: enableThreeD ? "../components/SignalObservatory3D.qml" : "../components/SpatialChamber.qml"
+                    onStatusChanged: {
+                        if (status === Loader.Error && enableThreeD)
+                            enableThreeD = false
+                    }
+                }
+                Rectangle {
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 18
+                    radius: 7
+                    width: modeButton.implicitWidth + 20
+                    height: 36
+                    color: "#142b3a"
+                    border.color: "#4a8694"
+                    Button {
+                        id: modeButton
+                        anchors.fill: parent
+                        text: enableThreeD ? "3D / SWITCH TO 2D" : "2D / TRY 3D"
+                        font.family: "JetBrains Mono"
+                        font.pixelSize: 10
+                        onClicked: enableThreeD = !enableThreeD
+                    }
+                }
             }
             Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 29; height: 2; color: "#7eebf6"; opacity: .5 }
         }

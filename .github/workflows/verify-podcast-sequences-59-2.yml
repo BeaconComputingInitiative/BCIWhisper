@@ -41,6 +41,35 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           BCI_QML_SMOKE_TEST: "1"
         run: python -m bciwhisper.ui_qml.main
+      - name: Native 3D QML component smoke
+        env:
+          QT_QPA_PLATFORM: offscreen
+          QSG_RHI_BACKEND: software
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PySide6.QtCore import QUrl, QObject, Property
+          from PySide6.QtGui import QGuiApplication
+          from PySide6.QtQml import QQmlComponent, QQmlEngine
+          app = QGuiApplication([])
+          engine = QQmlEngine()
+          class Bridge(QObject):
+              @Property(float, constant=True)
+              def snrDb(self): return 7.0
+              @Property(list, constant=True)
+              def spectrumDb(self): return [-65.0] * 128
+          bridge = Bridge()
+          engine.rootContext().setContextProperty("bci", bridge)
+          source = Path("bciwhisper/ui_qml/qml/components/SignalObservatory3D.qml").resolve()
+          component = QQmlComponent(engine, QUrl.fromLocalFile(str(source)))
+          if component.isError():
+              raise RuntimeError(str(component.errors()))
+          obj = component.create()
+          if obj is None:
+              raise RuntimeError(str(component.errors()))
+          print("3D QML component parsed and instantiated")
+          obj.deleteLater()
+          PY
       - name: Integrity record
         if: always()
         run: |

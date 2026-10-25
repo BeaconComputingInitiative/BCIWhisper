@@ -11,6 +11,7 @@ on:
     branches:
       - master
       - script58.4-full-feature-runtime
+      - pre-studio-58.4-finalization
 
 permissions:
   contents: write

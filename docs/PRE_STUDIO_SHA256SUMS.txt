@@ -1,0 +1,6 @@
+# BEACON COMPUTING INITIATIVE
+# BCIWhisper Script 58.4 pre-studio finalization
+# Developer Seal: CJB-DEV-2026 / BCI Development Division
+# SHA-256 of exact UTF-8 file bytes, relative to repository root.
+1fc8b6bb44c95e59639e1195b6be61df6e1241194928ef6fd2dc4d52efa3ce5f  tests/test_pre_studio_boundary.py
+1fb80187b2fcd5e45ffc2f130d8405a2725e39cd6547bc371860495cc38f57a9  docs/PRE_STUDIO_FINALIZATION.md

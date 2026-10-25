@@ -1,5 +1,5 @@
 # BEACON COMPUTING INITIATIVE
-# BCIWhisper Script 60.0 | Engineering Build 2026.10.23-r6.37.0
+# BCIWhisper Script 58.4 | Engineering Build 2026.10.23-r6.35.4
 # Developer Seal: CJB-DEV-2026
 
 # -*- mode: python ; coding: utf-8 -*-
@@ -60,7 +60,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="BCIWhisper-60.0",
+    name="BCIWhisper-58.4",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -75,5 +75,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="BCIWhisper-60.0",
+    name="BCIWhisper-58.4",
 )

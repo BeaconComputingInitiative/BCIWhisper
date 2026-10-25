@@ -11,10 +11,6 @@ from typing import Any
 
 from bci_core.state import BCIApplicationStateMachine
 from bciwhisper.audio.service import AudioBlock, AudioService
-from bciwhisper.audio.program_bus import StudioProgramBus
-from bciwhisper.audio.secondary import SecondaryMicrophone
-from bciwhisper.recording.multitrack import MultitrackRecorder
-from bciwhisper.config.paths import AUDIO_LOG_DIR
 from bciwhisper.broadcast.service import BroadcastService
 from bciwhisper.config.runtime import RUNTIME
 from bciwhisper.dsp.engine import DSPEngine
@@ -33,22 +29,18 @@ class ApplicationRuntime:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._dsp_lock = threading.RLock()
-        self._recording_lock = threading.RLock()
         self._executor = ThreadPoolExecutor(max_workers=3, thread_name_prefix="BCI-Service")
         self.state_machine = BCIApplicationStateMachine()
         self.settings = SettingsService()
         self.telemetry = TelemetryDatabase()
         self.dsp = DSPEngine(baseline_seconds=RUNTIME.baseline_seconds)
         self.recording = RecordingService()
-        self.program_bus = StudioProgramBus()
         self.library = RecordingLibrary()
         self.processing = ProcessingService()
         self.transcription = TranscriptionService()
         self.playback = PlaybackService()
         self.broadcast = BroadcastService()
         self.audio = AudioService(on_block=self._on_audio_block, on_event=self._on_audio_event)
-        self.secondary_audio = SecondaryMicrophone(on_block=self._on_secondary_block, on_event=self._on_secondary_event)
-        self.multitrack = MultitrackRecorder(AUDIO_LOG_DIR)
 
         audio_settings = self.settings.section("audio")
         self.dsp.configure(
@@ -80,7 +72,6 @@ class ApplicationRuntime:
             "spectrum_hz": [],
             "recording": False,
             "last_recording": "",
-            "last_multitrack_manifest": "",
             "go_live": False,
             "player_url": "",
             "last_error": "",
@@ -93,14 +84,9 @@ class ApplicationRuntime:
         result["phase_reason"] = self.state_machine.reason
         result["audio_pid"] = int(self.audio.pid or 0)
         result["recording"] = self.recording.recording
-        result["manual_recording"] = self.recording.manual
         result["go_live"] = self.broadcast.live
         result["player_url"] = self.broadcast.player_url if self.broadcast.live else ""
         result["broadcast"] = self.broadcast.stats
-        result["program_bus"] = self.program_bus.settings()
-        result["secondary_running"] = self.secondary_audio.running
-        result["secondary_session"] = self.secondary_audio.session
-        result["multitrack_recording"] = self.multitrack.active
         return result
 
     def start(self) -> None:
@@ -117,13 +103,10 @@ class ApplicationRuntime:
     def stop(self) -> None:
         self.state_machine.mark_stopping("runtime stop requested")
         try:
-            with self._recording_lock:
-                result = self.recording.stop()
+            result = self.recording.stop()
             if result is not None:
                 self._handle_recording_complete(result)
         finally:
-            self.stop_multitrack_recording()
-            self.secondary_audio.stop()
             self.broadcast.shutdown()
             self.playback.stop()
             self.audio.stop()
@@ -180,65 +163,6 @@ class ApplicationRuntime:
 
     def refresh_devices(self) -> None:
         self.audio.request_probe()
-
-    def configure_program_bus(self, gain: float, muted: bool) -> None:
-        self.program_bus.configure(gain, muted)
-        self.telemetry.log("PROGRAM_BUS_UPDATED", self.program_bus.settings())
-
-    def start_secondary_microphone(self, device_id: int, device_name: str = "") -> None:
-        if self.audio.session and int(self.audio.session.get("device_id", -1)) == int(device_id):
-            raise ValueError("Secondary device must differ from primary device")
-        self.secondary_audio.start(device_id, device_name)
-        self.telemetry.log("SECONDARY_CAPTURE_REQUESTED", {"id": device_id, "name": device_name})
-
-    def stop_secondary_microphone(self) -> None:
-        if self.multitrack.active:
-            raise RuntimeError("Stop the multitrack take before disconnecting the secondary microphone")
-        self.secondary_audio.stop()
-
-    def start_multitrack_recording(self) -> None:
-        if not self.audio.session or not self.secondary_audio.session:
-            raise RuntimeError("Both microphone streams must be open")
-        primary_rate = int(self.audio.session.get("sample_rate", 0))
-        secondary_rate = int(self.secondary_audio.session.get("sample_rate", 0))
-        if primary_rate <= 0 or primary_rate != secondary_rate:
-            raise RuntimeError("Both microphones must have the same sample rate")
-        self.multitrack.start(primary_rate)
-        self.telemetry.log("MULTITRACK_STARTED", {"rate": primary_rate})
-
-    def stop_multitrack_recording(self) -> dict:
-        result = self.multitrack.stop()
-        if result:
-            with self._lock:
-                self._snapshot["last_multitrack_manifest"] = result["manifest"]
-            self.telemetry.log("MULTITRACK_SAVED", result)
-        return result
-
-    def _on_secondary_event(self, event: dict) -> None:
-        if event.get("type") in {"open_error", "audio_consumer_error", "stream_closed"}:
-            self._record_error("secondary_capture", RuntimeError(str(event)))
-        self.telemetry.log("SECONDARY_AUDIO_EVENT", event)
-
-    def _on_secondary_block(self, block: AudioBlock) -> None:
-        try:
-            self.multitrack.feed("secondary", block.samples, block.sample_rate, block.monotonic)
-        except Exception as exc:
-            self._record_error("secondary_multitrack", exc)
-
-    def start_podcast_recording(self) -> None:
-        with self._recording_lock:
-            rate = int(self.snapshot().get("sample_rate") or 0)
-            if not self.audio.running or rate <= 0:
-                raise RuntimeError("Microphone must be connected before recording")
-            self.recording.start_manual(rate)
-        self.telemetry.log("PODCAST_RECORDING_STARTED", {"sample_rate": rate})
-
-    def stop_podcast_recording(self) -> None:
-        with self._recording_lock:
-            result = self.recording.stop_manual()
-        if result is not None:
-            self._handle_recording_complete(result)
-            self.telemetry.log("PODCAST_RECORDING_STOPPED", {"path": str(result.raw_path)})
 
     def recordings(self) -> list[dict]:
         return self.library.rows()
@@ -327,20 +251,17 @@ class ApplicationRuntime:
             if frame.baseline_complete:
                 self.state_machine.mark_ready("room baseline complete")
 
-            program = self.program_bus.process(frame.filtered)
-            self.multitrack.feed("primary", block.samples, block.sample_rate, block.monotonic)
-            with self._recording_lock:
-                result = self.recording.feed(
-                    raw=block.samples,
-                    isolated=program,
-                    sample_rate=block.sample_rate,
-                    locked=frame.active,
-                )
+            result = self.recording.feed(
+                raw=block.samples,
+                isolated=frame.filtered,
+                sample_rate=block.sample_rate,
+                locked=frame.active,
+            )
             if result is not None:
                 self._handle_recording_complete(result)
 
             if self.broadcast.live:
-                self.broadcast.publish(program, block.sample_rate)
+                self.broadcast.publish(frame.filtered, block.sample_rate)
 
             stride = max(1, len(frame.spectrum_db) // 256)
             spectrum_db = frame.spectrum_db[::stride][:256].tolist()

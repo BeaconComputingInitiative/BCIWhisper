@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import os
-import queue
 import secrets
 import shutil
 import subprocess
@@ -65,9 +64,6 @@ class BroadcastService:
         self._bytes_sent = 0
         self._chunks_sent = 0
         self._last_error = ""
-        self._send_queue = queue.Queue(maxsize=128)
-        self._sender = None
-        self._dropped_chunks = 0
 
     @property
     def live(self) -> bool:
@@ -85,8 +81,6 @@ class BroadcastService:
                 "live": self._live,
                 "bytes_sent": self._bytes_sent,
                 "chunks_sent": self._chunks_sent,
-                "queue_depth": self._send_queue.qsize(),
-                "dropped_chunks": self._dropped_chunks,
                 "player_url": self.player_url,
                 "last_error": self._last_error,
             }
@@ -147,13 +141,12 @@ class BroadcastService:
                 return self.player_url
 
         self.publisher_token = _publisher_credential() or self.publisher_token
-        if int(sample_rate) <= 0:
-            raise ValueError("A positive sample rate is required")
         if self.gateway_url and not self.publisher_token:
             raise RuntimeError(
                 "Render publisher credential missing. Set BCI_PUBLISHER_TOKEN or "
                 "create ~/.config/BCIWhisper/publisher.token with mode 0600."
             )
+        self.publisher_token = _publisher_credential() or self.publisher_token
         self._start_local_gateway()
 
         base = self.gateway_url or f"ws://{self.host}:{self.port}"
@@ -195,59 +188,31 @@ class BroadcastService:
             self._bytes_sent = 0
             self._chunks_sent = 0
             self._last_error = ""
-            self._dropped_chunks = 0
-            self._send_queue = queue.Queue(maxsize=128)
-            self._sender = threading.Thread(target=self._send_loop, args=(ws, self._send_queue), daemon=True, name="BCI-StreamPublisher")
-            self._sender.start()
         return self.player_url
-
-    def _send_loop(self, ws, send_queue) -> None:
-        """Network transmission runs outside the capture callback."""
-        while True:
-            with self._lock:
-                if not self._live or self._socket is not ws:
-                    break
-            try:
-                pcm = send_queue.get(timeout=0.2)
-            except queue.Empty:
-                continue
-            try:
-                ws.send(pcm)
-                with self._lock:
-                    self._bytes_sent += len(pcm)
-                    self._chunks_sent += 1
-            except Exception as exc:
-                with self._lock:
-                    self._last_error = str(exc)
-                    if self._socket is ws:
-                        self._socket = None
-                        self._live = False
-                        self._sample_rate = 0
-                break
-            finally:
-                send_queue.task_done()
-        try:
-            ws.close()
-        except Exception:
-            pass
 
     def publish(self, samples: np.ndarray, sample_rate: int) -> None:
         with self._lock:
-            if not self._live:
+            if not self._live or self._socket is None:
                 return
+            ws = self._socket
             configured_rate = self._sample_rate
+
         if int(sample_rate) != configured_rate:
-            with self._lock:
-                self._last_error = "capture sample rate changed"
-                self._live = False
-            return
+            self.stop()
+            raise RuntimeError("Go Live stopped because the capture sample rate changed")
+
         x = np.asarray(samples, dtype=np.float32).reshape(-1)
         pcm = (np.clip(x, -1.0, 1.0) * 32767.0).astype("<i2").tobytes()
         try:
-            self._send_queue.put_nowait(pcm)
-        except queue.Full:
+            ws.send(pcm)
             with self._lock:
-                self._dropped_chunks += 1
+                self._bytes_sent += len(pcm)
+                self._chunks_sent += 1
+        except Exception as exc:
+            with self._lock:
+                self._last_error = str(exc)
+            self.stop()
+            raise
 
     def stop(self) -> None:
         with self._lock:

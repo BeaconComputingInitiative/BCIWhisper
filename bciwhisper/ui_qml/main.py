@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import os
 import sys
-import multiprocessing
 from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtQml
@@ -61,7 +60,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    # Required for PyInstaller + multiprocessing spawn. Without this, every
-    # isolated PortAudio child may re-enter main() and create another Qt window.
-    multiprocessing.freeze_support()
     raise SystemExit(main())

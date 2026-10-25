@@ -13,7 +13,6 @@ from PySide6 import QtCore
 from bciwhisper.app import ApplicationRuntime
 from bciwhisper.services.native_dsp import NativeDSPService
 from bciwhisper.version import BUILD, PROJECT_VERSION, SCRIPT_REVISION
-from bciwhisper.recording.timeline import EpisodeTimeline
 
 
 class BCIWhisperBridge(QtCore.QObject):
@@ -31,7 +30,6 @@ class BCIWhisperBridge(QtCore.QObject):
         self._snapshot = self._runtime.snapshot()
         self._recordings: list[dict] = []
         self._telemetry: list[dict] = []
-        self._episode = EpisodeTimeline()
         self._transcript_text = ""
         self._transcript_status = "IDLE"
         self._transcript_backend = ""
@@ -164,102 +162,9 @@ class BCIWhisperBridge(QtCore.QObject):
     def baselineComplete(self) -> bool:
         return bool(self._value("baseline_complete", False))
 
-    @QtCore.Property(float, notify=runtimeChanged)
-    def programGain(self) -> float:
-        return float(self._value("program_bus", {}).get("gain", 1.0))
-
-    @QtCore.Property(bool, notify=runtimeChanged)
-    def programMuted(self) -> bool:
-        return bool(self._value("program_bus", {}).get("muted", False))
-
-    @QtCore.Slot(float, bool)
-    def configureProgramBus(self, gain: float, muted: bool) -> None:
-        try:
-            self._runtime.configure_program_bus(gain, muted)
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Property(bool, notify=runtimeChanged)
-    def secondaryRunning(self) -> bool:
-        return bool(self._value("secondary_running", False))
-
-    @QtCore.Property(bool, notify=runtimeChanged)
-    def multitrackRecording(self) -> bool:
-        return bool(self._value("multitrack_recording", False))
-
-    @QtCore.Slot(int)
-    def startSecondary(self, device_id: int) -> None:
-        try:
-            self._runtime.start_secondary_microphone(device_id)
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot()
-    def stopSecondary(self) -> None:
-        try:
-            self._runtime.stop_secondary_microphone()
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot()
-    def startMultitrack(self) -> None:
-        try:
-            self._runtime.start_multitrack_recording()
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot()
-    def stopMultitrack(self) -> None:
-        try:
-            self._runtime.stop_multitrack_recording()
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-            self.refreshRecordings()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Property(bool, notify=runtimeChanged)
-    def podcastRecording(self) -> bool:
-        return bool(self._value("manual_recording", False))
-
-    @QtCore.Slot()
-    def startPodcastRecording(self) -> None:
-        try:
-            self._runtime.start_podcast_recording()
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot()
-    def stopPodcastRecording(self) -> None:
-        try:
-            self._runtime.stop_podcast_recording()
-            self._snapshot = self._runtime.snapshot()
-            self.runtimeChanged.emit()
-            self.refreshRecordings()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
     @QtCore.Property(bool, notify=runtimeChanged)
     def recording(self) -> bool:
         return bool(self._value("recording", False))
-
-    @QtCore.Property(int, notify=runtimeChanged)
-    def streamQueueDepth(self) -> int:
-        return int(self._value("broadcast", {}).get("queue_depth", 0))
-
-    @QtCore.Property(int, notify=runtimeChanged)
-    def streamDroppedChunks(self) -> int:
-        return int(self._value("broadcast", {}).get("dropped_chunks", 0))
 
     @QtCore.Property(bool, notify=runtimeChanged)
     def goLive(self) -> bool:
@@ -324,61 +229,6 @@ class BCIWhisperBridge(QtCore.QObject):
     @QtCore.Property(str, notify=transcriptChanged)
     def transcriptModel(self) -> str:
         return self._transcript_model
-
-    @QtCore.Property(list, notify=runtimeChanged)
-    def episodeTracks(self):
-        return list(self._episode.tracks)
-
-    @QtCore.Property(list, notify=runtimeChanged)
-    def episodeMarkers(self):
-        return list(self._episode.markers)
-
-    @QtCore.Slot(str)
-    def importEpisodeTrack(self, path: str) -> None:
-        try:
-            self._episode.import_wav(path)
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot(int, float, float)
-    def trimEpisodeTrack(self, index: int, start: float, end: float) -> None:
-        try:
-            self._episode.trim(index, start, end)
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot(str)
-    def saveEpisode(self, filename: str) -> None:
-        try:
-            self._episode.save(filename)
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot(str)
-    def loadEpisode(self, filename: str) -> None:
-        try:
-            self._episode = EpisodeTimeline.load(filename)
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot(int, float, bool)
-    def setEpisodeTrackMix(self, index: int, gain: float, muted: bool) -> None:
-        try:
-            self._episode.set_mix(index, gain, muted)
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
-
-    @QtCore.Slot(float, str)
-    def addEpisodeMarker(self, seconds: float, text: str) -> None:
-        try:
-            self._episode.add_transcript_marker(seconds, text)
-            self.runtimeChanged.emit()
-        except Exception as exc:
-            self._set_local_error(str(exc))
 
     @QtCore.Property(bool, notify=runtimeChanged)
     def publisherConfigured(self) -> bool:

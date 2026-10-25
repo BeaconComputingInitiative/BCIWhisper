@@ -1,0 +1,7 @@
+# BEACON COMPUTING INITIATIVE
+# BCIWhisper Script 58.4 integrity manifest
+# Developer Seal: CJB-DEV-2026 / BCI Development Division
+# SHA-256 values cover each file exactly; manifest cannot hash itself without recursive reference.
+20a0aa52608ce2b3a36fc50508fc994cefe4182b2f1b41dcfafae056893eeb7a  docs/WHISPER_PRESTUDIO_FINALIZATION.md
+420a7df43d0045e188d0fc2566a6ed98168757d3995e1f3450f966ce80ed9083  tests/test_prestudio_product_boundary.py
+0be382183473c130c133a6e0431151594290714963a9ba924b86f568aab30d43  .github/workflows/verify-whisper-prestudio.yml

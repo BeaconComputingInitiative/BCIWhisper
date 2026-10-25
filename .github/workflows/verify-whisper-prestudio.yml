@@ -1,0 +1,36 @@
+# BEACON COMPUTING INITIATIVE
+# BCIWhisper Script 58.4 | Pre-podcast product test
+# Developer Seal: CJB-DEV-2026 / BCI Development Division
+# File SHA-256: see docs/PRESTUDIO_SHA256SUMS
+
+name: Verify BCIWhisper pre-studio boundary
+
+on:
+  push:
+    branches:
+      - bci/whisper-prestudio-58.4-finalization
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pre-studio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate SHA-256
+        run: sha256sum -c docs/PRESTUDIO_SHA256SUMS
+      - name: Compile Python
+        run: python -m compileall -q bciwhisper bci_audio bci_core tests
+      - name: Gate original product identity
+        run: python -m unittest discover -s tests -p 'test_prestudio_product_boundary.py' -v

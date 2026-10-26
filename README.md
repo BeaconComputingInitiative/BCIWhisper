@@ -1,4 +1,18 @@
+<!-- BEACON COMPUTING INITIATIVE | Developer Seal: CJB-DEV-2026 | Chance Joaquin Boone -->
+<!-- SHA-256: see docs/HYGIENE_SHA256SUMS -->
+
 # BCIWhisper
+
+## Source, packaged release and Studio boundary
+
+The default branch is the **Script 58.4 pre-Studio finalization candidate**. Its acceptance gates are documented in [WHISPER_PRESTUDIO_FINALIZATION.md](docs/WHISPER_PRESTUDIO_FINALIZATION.md). This is distinct from the **57.10 packaged release baseline** described in the historical guide below.
+
+Podcast-specific work belongs to [BCIStudio](https://github.com/BeaconComputingInitiative/BCIStudio), whose remote source is an extracted baseline and is not yet a validated standalone executable. The existing 60.0 Podcast Lab release under this repository is historical Studio work; a higher script number does not make it the current standalone Whisper baseline.
+
+See [repository findings and maintenance rules](docs/REPOSITORY_HYGIENE.md). No release is promoted by this documentation update.
+
+## Historical 57.10 packaged-release guide
+
 
 <p align="center">
   <img src="assets/bciwhisper.png" alt="BCIWhisper logo" width="220">
@@ -850,3 +864,4 @@ Verify release artifacts against the checksum published with the GitHub Release 
 **Beacon Computing Initiative**  
 **BCIWhisper v6.0**  
 **Observe accurately. Preserve faithfully. Analyze transparently. Communicate securely. Act deliberately.**
+

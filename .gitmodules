@@ -1,3 +1,0 @@
-[submodule "android/vendor/whisper.cpp"]
-	path = android/vendor/whisper.cpp
-	url = https://github.com/ggml-org/whisper.cpp.git

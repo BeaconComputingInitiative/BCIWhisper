@@ -1,8 +1,0 @@
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/bci_black" />
-    <item>
-        <bitmap
-            android:gravity="center"
-            android:src="@drawable/bciwhisper_icon" />
-    </item>
-</layer-list>
